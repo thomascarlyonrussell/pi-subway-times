@@ -10,7 +10,7 @@ time.sleep(5)
 GRID_SIZE = 3
 # FONT = terminalio.FONT
 FONT = "/10-Adobe-Helvetica.bdf"
-LINE_FONT = "/MTA-75.bdf"
+LINE_FONT = "/mta.bdf"
 FONT_SCALE = 0.5
 TIME_DELAY = 4
 
@@ -89,9 +89,9 @@ START_Y = -3
 
 # Define the x, y positions for each cell
 CELL_POSITIONS = [
-    (0, -3), (6, -3), (15, -2), (53, -3),
-    (0, 7), (6, 7), (15, 8), (53, 7),
-    (0, 17), (6, 17), (15, 18), (53, 17)
+    (0, -4), (2, 5), (15, -3), (53, -4),
+    (0, 6), (2, 15), (15, 7), (53, 6),
+    (0, 16), (2, 25), (15, 17), (53, 16)
 ]
 
 # Build the grid
@@ -100,7 +100,7 @@ for i in range(3):
         cell_index = i * 4 + j
         matrixportal.add_text(
             text_font=FONT if j!=1 else LINE_FONT,
-            text_scale=FONT_SCALE if j!=1 else 0.2,
+            text_scale=FONT_SCALE,
             text_position=CELL_POSITIONS[cell_index],
             text_color=0xFFFFFF,
             text="",
