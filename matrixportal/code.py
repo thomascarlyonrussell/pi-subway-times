@@ -15,11 +15,11 @@ FONT_SCALE = 0.5
 TIME_DELAY = 4
 
 # Endpoint URL
-DATA_SOURCE = "http://192.168.1.49:5000/subway-times"
+DATA_SOURCE = "http://192.168.1.223:5000/subway-times"
 # TRIP_JSON_PATH = ["subway-times"]
 
 # Demo mode flag
-DEMO_MODE = True
+DEMO_MODE = False
 DEMO_FILE = "demo_data.json"
 
 # Initialize the MatrixPortal
@@ -50,7 +50,7 @@ def fetch_trip_data():
     else:
         try:
             trip_data = matrixportal.network.fetch(DATA_SOURCE)
-            trips = matrixportal.network.json_traverse(trip_data.json())
+            trips = trip_data.json() #matrixportal.network.json_traverse(trip_data.json())
             if not trips:
                 raise ValueError("No trips found")
             return trips
@@ -69,7 +69,7 @@ def build_trip_text(trip, column, index):
         return str(trip["minutes_until_arrival"])
 
 def display_grid(trip_json):
-    trip_size = len(trip_json)
+    trip_size = 3#len(trip_json)
     for j in range(4):
         # Display the first trip
         matrixportal.set_text(build_trip_text(trip_json[0], j, 1), j)
@@ -87,11 +87,18 @@ def display_grid(trip_json):
 # Define the starting y reference point
 START_Y = -3
 
-# Define the x, y positions for each cell
+# # Define the x, y positions for each cell
+# CELL_POSITIONS = [
+#     (0, -4), (6, -4), (15, -3), (53, -4),
+#     (0, 6), (6, 6), (15, 7), (53, 6),
+#     (0, 16), (6, 16), (15, 17), (53, 16)
+# ]
+
+# # MTA FONT POSITIONS
 CELL_POSITIONS = [
-    (0, -4), (2, 5), (15, -3), (53, -4),
-    (0, 6), (2, 15), (15, 7), (53, 6),
-    (0, 16), (2, 25), (15, 17), (53, 16)
+    (-5, -4), (-3, 5), (12, -3), (53, -4),
+    (-5, 6), (-3, 15), (12, 7), (53, 6),
+    (-5, 16), (-3, 25), (12, 17), (53, 16)
 ]
 
 # Build the grid
@@ -105,7 +112,7 @@ for i in range(3):
             text_color=0xFFFFFF,
             text="",
             scrolling=False,
-            text_maxlen=8 if j == 2 else 2,
+            text_maxlen=10 if j == 2 else 2,
         )
 
 # Keep the display on and update trip data in a loop
@@ -118,4 +125,4 @@ while True:
             connect_wifi()  # Attempt to reconnect to Wi-Fi
     else:
         display_grid(TRIP_JSON)  # Display all trips
-    time.sleep(0.5)  # Fetch new data every 30 seconds
+    time.sleep(60)  # Fetch new data every 30 seconds
