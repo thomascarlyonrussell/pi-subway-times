@@ -49,29 +49,31 @@ if not DEMO_MODE:
         print("Failed to connect to Wi-Fi after multiple attempts")
         # Handle the failure case as needed
 
-# Function to fetch trip data with memory management
-def fetch_trip_data():
+# Function to fetch trip data with memory management and retry logic
+def fetch_trip_data(retries=3):
     gc.collect()  # Force garbage collection
-    if DEMO_MODE:
+    attempt = 0
+    while attempt < retries:
         try:
-            with open(DEMO_FILE, 'r') as file:
-                trips = json.load(file)
+            if DEMO_MODE:
+                with open(DEMO_FILE, 'r') as file:
+                    trips = json.load(file)
+                    if not trips:
+                        raise ValueError("No trips found")
+                    return trips
+            else:
+                trip_data = matrixportal.network.fetch(DATA_SOURCE)
+                trips = trip_data.json()  # matrixportal.network.json_traverse(trip_data.json())
                 if not trips:
                     raise ValueError("No trips found")
                 return trips
         except Exception as e:
-            print("Error loading demo data:", e)
-            return None
-    else:
-        try:
-            trip_data = matrixportal.network.fetch(DATA_SOURCE)
-            trips = trip_data.json()  # matrixportal.network.json_traverse(trip_data.json())
-            if not trips:
-                raise ValueError("No trips found")
-            return trips
-        except Exception as e:
-            print("Error fetching trip data:", e)
-            return None
+            print(f"Error fetching trip data (attempt {attempt + 1}):", e)
+            attempt += 1
+            time.sleep(REFRESH_TIME_DELAY)  # Wait before retrying
+            matrixportal.network.disconnect()  # Ensure the socket is closed
+            matrixportal.network.connect()  # Reconnect to Wi-Fi
+    return None
 
 def build_trip_text(trip, column, index):
     if column == 0:
@@ -83,8 +85,7 @@ def build_trip_text(trip, column, index):
     elif column == 3:
         return str(trip["minutes_until_arrival"])
 
-def display_grid(trip_json, start_index=2):
-    trip_size = len(trip_json)
+def start_grid(trip_json):
     for j in range(4):
         # Display the first trip
         matrixportal.set_text(build_trip_text(trip_json[0], j, 1), j)
@@ -92,6 +93,9 @@ def display_grid(trip_json, start_index=2):
         # Display the second trip
         matrixportal.set_text(build_trip_text(trip_json[1], j, 2), 4 + j)
         matrixportal.set_text_color(int(trip_json[1].get('route_color', 'FFFFFF'), 16) if j != 0 else 0xFFFFFF, 4 + j)
+
+def update_grid(trip_json, start_index=2):
+    trip_size = len(trip_json)
     for i in range(start_index, trip_size):
         for j in range(4):
             matrixportal.set_text(build_trip_text(trip_json[i], j, i+1), 8 + j)
@@ -115,6 +119,9 @@ CELL_POSITIONS = [
     (-5, 16), (-3, 25), (12, 17), (53, 16)
 ]
 
+# Add a position for the countdown timer
+COUNTDOWN_POSITION = (0, 26)
+
 # Build the grid
 for i in range(3):
     for j in range(4):
@@ -129,9 +136,29 @@ for i in range(3):
             text_maxlen=10 if j == 2 else 2,
         )
 
+# Add the countdown timer text box
+matrixportal.add_text(
+    text_font=FONT,
+    text_scale=FONT_SCALE,
+    text_position=COUNTDOWN_POSITION,
+    text_color=0xFFFFFF,
+    text="",
+    scrolling=False,
+    text_maxlen=200,
+)
+
+# Function to update the countdown timer
+def update_countdown_timer(start_time, refresh_time_delay):
+    elapsed_time = time.monotonic() - start_time
+    total_pixels = 32  # Assuming the width of the display is 32 pixels
+    pixels_on = int(((refresh_time_delay - elapsed_time) / refresh_time_delay) * total_pixels)
+    countdown_text = "i" * pixels_on + " " * (total_pixels - pixels_on)
+    matrixportal.set_text(countdown_text, 12)
+
 # Keep the display on and update trip data in a loop
 while True:
     TRIP_JSON = fetch_trip_data()
+    
     if not TRIP_JSON:
         matrixportal.set_text("No trip data available", 0)
         matrixportal.set_text_color(0xFF0000, 0)
@@ -140,9 +167,11 @@ while True:
                 print("Failed to reconnect to Wi-Fi")
                 continue  # Skip the rest of the loop if Wi-Fi reconnection fails
     else:
-        display_grid(TRIP_JSON, start_index=2)  # Display all trips
-        for _ in range(REFRESH_TIME_DELAY // TIME_DELAY):  # Loop through the last row every 4 seconds for 60 seconds
-            display_grid(TRIP_JSON, start_index=2)
+        start_grid(TRIP_JSON)  # Initialize the grid with the first two rows
+        start_time = time.monotonic()
+        update_countdown_timer(start_time, REFRESH_TIME_DELAY)
+        while (time.monotonic() - start_time) < REFRESH_TIME_DELAY:
+            update_grid(TRIP_JSON, start_index=2)  # Update only the last row
+            update_countdown_timer(start_time, REFRESH_TIME_DELAY)
             time.sleep(TIME_DELAY)
-    time.sleep(REFRESH_TIME_DELAY - (REFRESH_TIME_DELAY // TIME_DELAY) * TIME_DELAY)  # Adjust sleep time to account for the inner loop
     gc.collect()  # Force garbage collection
