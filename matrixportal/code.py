@@ -13,6 +13,8 @@ FONT = "/10-Adobe-Helvetica.bdf"
 LINE_FONT = "/mta.bdf"
 FONT_SCALE = 0.5
 TIME_DELAY = 4
+# Refresh time delay in seconds
+REFRESH_TIME_DELAY = 60
 
 # Endpoint URL
 DATA_SOURCE = "http://192.168.1.223:5000/subway-times"
@@ -68,8 +70,8 @@ def build_trip_text(trip, column, index):
     elif column == 3:
         return str(trip["minutes_until_arrival"])
 
-def display_grid(trip_json):
-    trip_size = 3#len(trip_json)
+def display_grid(trip_json, start_index=2):
+    trip_size = len(trip_json)
     for j in range(4):
         # Display the first trip
         matrixportal.set_text(build_trip_text(trip_json[0], j, 1), j)
@@ -77,8 +79,7 @@ def display_grid(trip_json):
         # Display the second trip
         matrixportal.set_text(build_trip_text(trip_json[1], j, 2), 4 + j)
         matrixportal.set_text_color(int(trip_json[1].get('route_color', 'FFFFFF'), 16) if j != 0 else 0xFFFFFF, 4 + j)
-        # Display the third trip (rotating through rest of trips)
-    for i in range(2, trip_size):
+    for i in range(start_index, trip_size):
         for j in range(4):
             matrixportal.set_text(build_trip_text(trip_json[i], j, i+1), 8 + j)
             matrixportal.set_text_color(int(trip_json[i].get('route_color', 'FFFFFF'), 16) if j != 0 else 0xFFFFFF, 8 + j)
@@ -115,6 +116,8 @@ for i in range(3):
             text_maxlen=10 if j == 2 else 2,
         )
 
+
+
 # Keep the display on and update trip data in a loop
 while True:
     TRIP_JSON = fetch_trip_data()
@@ -124,5 +127,8 @@ while True:
         if not DEMO_MODE:
             connect_wifi()  # Attempt to reconnect to Wi-Fi
     else:
-        display_grid(TRIP_JSON)  # Display all trips
-    time.sleep(60)  # Fetch new data every 30 seconds
+        display_grid(TRIP_JSON, start_index=2)  # Display all trips
+        for _ in range(REFRESH_TIME_DELAY // TIME_DELAY):  # Loop through the last row every 4 seconds for 60 seconds
+            display_grid(TRIP_JSON, start_index=2)
+            time.sleep(TIME_DELAY)
+    time.sleep(REFRESH_TIME_DELAY - (REFRESH_TIME_DELAY // TIME_DELAY) * TIME_DELAY)  # Adjust sleep time to account for the inner loop
