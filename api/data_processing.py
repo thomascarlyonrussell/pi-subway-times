@@ -4,6 +4,8 @@ from datetime import datetime
 from config import MTA_FEED_BASE_URL, MTA_FEEDS
 import csv
 
+#TODO: Ensure that trips are ordered properly when passing midnight, 00:05 shows as before 23:55 and we don't want that since its later becuase its the next day
+
 def get_station_stops(stations, directions=None):
     stops = []
     with open('data/stops.txt', 'r') as file:
