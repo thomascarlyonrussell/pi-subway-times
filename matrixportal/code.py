@@ -3,6 +3,7 @@ import board
 import terminalio
 from adafruit_matrixportal.matrixportal import MatrixPortal
 import json
+import gc  # Import garbage collection module
 
 time.sleep(5)
 
@@ -27,18 +28,30 @@ DEMO_FILE = "demo_data.json"
 # Initialize the MatrixPortal
 matrixportal = MatrixPortal(status_neopixel=board.NEOPIXEL, bit_depth=3, url=DATA_SOURCE)
 
-# Connect to Wi-Fi
-def connect_wifi():
-    if not matrixportal.network.is_connected:
-        matrixportal.network.connect()
-        print("Connected to Wi-Fi")
-        print("IP Address:", matrixportal.network.ip_address)
+# Connect to Wi-Fi with retry logic
+def connect_wifi(retries=3):
+    attempt = 0
+    while attempt < retries:
+        try:
+            if not matrixportal.network.is_connected:
+                matrixportal.network.connect()
+                print("Connected to Wi-Fi")
+                print("IP Address:", matrixportal.network.ip_address)
+                return True
+        except Exception as e:
+            print(f"Wi-Fi connection attempt {attempt + 1} failed: {e}")
+            attempt += 1
+            time.sleep(REFRESH_TIME_DELAY)  # Wait before retrying
+    return False
 
 if not DEMO_MODE:
-    connect_wifi()
+    if not connect_wifi():
+        print("Failed to connect to Wi-Fi after multiple attempts")
+        # Handle the failure case as needed
 
-# Function to fetch trip data
+# Function to fetch trip data with memory management
 def fetch_trip_data():
+    gc.collect()  # Force garbage collection
     if DEMO_MODE:
         try:
             with open(DEMO_FILE, 'r') as file:
@@ -52,7 +65,7 @@ def fetch_trip_data():
     else:
         try:
             trip_data = matrixportal.network.fetch(DATA_SOURCE)
-            trips = trip_data.json() #matrixportal.network.json_traverse(trip_data.json())
+            trips = trip_data.json()  # matrixportal.network.json_traverse(trip_data.json())
             if not trips:
                 raise ValueError("No trips found")
             return trips
@@ -116,8 +129,6 @@ for i in range(3):
             text_maxlen=10 if j == 2 else 2,
         )
 
-
-
 # Keep the display on and update trip data in a loop
 while True:
     TRIP_JSON = fetch_trip_data()
@@ -125,10 +136,13 @@ while True:
         matrixportal.set_text("No trip data available", 0)
         matrixportal.set_text_color(0xFF0000, 0)
         if not DEMO_MODE:
-            connect_wifi()  # Attempt to reconnect to Wi-Fi
+            if not connect_wifi():  # Attempt to reconnect to Wi-Fi
+                print("Failed to reconnect to Wi-Fi")
+                continue  # Skip the rest of the loop if Wi-Fi reconnection fails
     else:
         display_grid(TRIP_JSON, start_index=2)  # Display all trips
         for _ in range(REFRESH_TIME_DELAY // TIME_DELAY):  # Loop through the last row every 4 seconds for 60 seconds
             display_grid(TRIP_JSON, start_index=2)
             time.sleep(TIME_DELAY)
     time.sleep(REFRESH_TIME_DELAY - (REFRESH_TIME_DELAY // TIME_DELAY) * TIME_DELAY)  # Adjust sleep time to account for the inner loop
+    gc.collect()  # Force garbage collection
