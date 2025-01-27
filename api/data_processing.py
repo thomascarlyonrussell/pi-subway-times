@@ -54,7 +54,7 @@ def get_mta_data(stations, trip_directions):
                             trip = {}
                             trip['line'] = entity_trip.trip.route_id
                             trip['arrival_time'] = arrival_time.strftime('%H:%M')
-                            trip['minutes_until_arrival'] = round((arrival_time.timestamp() - current_time) / 60)
+                            trip['minutes_until_arrival'] = (arrival_time.timestamp() - current_time) // 60
                             if trip.get('line')=='F': direction = 'Manhatta'
                             elif trip.get('line')=='G': direction = 'Queens'
                             else: direction =='Adventure Time'
