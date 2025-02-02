@@ -86,27 +86,32 @@ def update_countdown_timer(start_time, refresh_time_delay):
 
 def start_grid(trip_json):
     for j in range(4):
-        # Display the first trip
-        matrixportal.set_text(build_trip_text(TRIP_JSON[0], j, 1), j)
-        matrixportal.set_text_color(int(TRIP_JSON[0].get('route_color', 'FFFFFF'), 16) if j != 0 else 0xFFFFFF, j)
-        # Display the second trip
-        matrixportal.set_text(build_trip_text(TRIP_JSON[1], j, 2), 4 + j)
-        matrixportal.set_text_color(int(TRIP_JSON[1].get('route_color', 'FFFFFF'), 16) if j != 0 else 0xFFFFFF, 4 + j)
+        if len(trip_json) > 0:
+            # Display the first trip
+            matrixportal.set_text(build_trip_text(trip_json[0], j, 1), j)
+            matrixportal.set_text_color(int(trip_json[0].get('route_color', 'FFFFFF'), 16) if j != 0 else 0xFFFFFF, j)
+        if len(trip_json) > 1:
+            # Display the second trip
+            matrixportal.set_text(build_trip_text(trip_json[1], j, 2), 4 + j)
+            matrixportal.set_text_color(int(trip_json[1].get('route_color', 'FFFFFF'), 16) if j != 0 else 0xFFFFFF, 4 + j)
     return
 
 def update_grid(trip_json, start_index=2):
     trip_size = len(trip_json)
     for i in range(start_index, trip_size):
         for j in range(4):
-            # Display the first trip
-            matrixportal.set_text(build_trip_text(trip_json[0], j, 1), j)
-            matrixportal.set_text_color(int(trip_json[0].get('route_color', 'FFFFFF'), 16) if j != 0 else 0xFFFFFF, j)
-            # Display the second trip
-            matrixportal.set_text(build_trip_text(trip_json[1], j, 2), 4 + j)
-            matrixportal.set_text_color(int(trip_json[1].get('route_color', 'FFFFFF'), 16) if j != 0 else 0xFFFFFF, 4 + j)
-            # Display the third trip
-            matrixportal.set_text(build_trip_text(trip_json[i], j, i+1), 8 + j)
-            matrixportal.set_text_color(int(trip_json[i].get('route_color', 'FFFFFF'), 16) if j != 0 else 0xFFFFFF, 8 + j)
+            if trip_size > 0:
+                # Display the first trip
+                matrixportal.set_text(build_trip_text(trip_json[0], j, 1), j)
+                matrixportal.set_text_color(int(trip_json[0].get('route_color', 'FFFFFF'), 16) if j != 0 else 0xFFFFFF, j)
+            if trip_size > 1:
+                # Display the second trip
+                matrixportal.set_text(build_trip_text(trip_json[1], j, 2), 4 + j)
+                matrixportal.set_text_color(int(trip_json[1].get('route_color', 'FFFFFF'), 16) if j != 0 else 0xFFFFFF, 4 + j)
+            if trip_size > i:
+                # Display the third trip
+                matrixportal.set_text(build_trip_text(trip_json[i], j, i+1), 8 + j)
+                matrixportal.set_text_color(int(trip_json[i].get('route_color', 'FFFFFF'), 16) if j != 0 else 0xFFFFFF, 8 + j)
         update_countdown_timer(start_time, REFRESH_TIME_DELAY)
         time.sleep(TIME_DELAY)
     return
