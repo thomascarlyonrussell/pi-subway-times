@@ -28,6 +28,23 @@ stations = get_stops(MTA_STOP, MTA_DIRECTIONS)
 trip_directions = get_trip_directions()
 route_colors = get_route_colors()
 
+# Initialize the RGBMatrix
+options = RGBMatrixOptions()
+options.rows = 32
+options.cols = 64
+options.chain_length = 1
+options.parallel = 1
+options.hardware_mapping = 'adafruit-hat'
+matrix = RGBMatrix(options=options)
+offscreen_canvas = matrix.CreateFrameCanvas()
+font = graphics.Font()
+font.LoadFont("/home/pi/rpi-rgb-led-matrix/fonts/7x13.bdf")
+
+# Prepare Station Data
+stops = get_stops(MTA_STOP, MTA_DIRECTIONS)
+trip_directions = get_trip_directions()
+route_colors = get_route_colors()
+
 def get_subway_times(max_list=5, min_arrival=MINIMUM_ARRIVAL_MINUTES):
     trips = get_mta_data(MTA_ROUTES, stations, trip_directions)
 
@@ -59,23 +76,6 @@ def fetch_trip_data(retries=3):
             time.sleep(REFRESH_TIME_DELAY)  # Wait before retrying
 
     return None
-
-# Initialize the RGBMatrix
-options = RGBMatrixOptions()
-options.rows = 32
-options.cols = 64
-options.chain_length = 1
-options.parallel = 1
-options.hardware_mapping = 'adafruit-hat'
-matrix = RGBMatrix(options=options)
-offscreen_canvas = matrix.CreateFrameCanvas()
-font = graphics.Font()
-font.LoadFont("/home/pi/rpi-rgb-led-matrix/fonts/7x13.bdf")
-
-# Prepare Station Data
-stops = get_stops(MTA_STOP, MTA_DIRECTIONS)
-trip_directions = get_trip_directions(routes=MTA_ROUTES)
-route_colors = get_route_colors(routes=MTA_ROUTES)
 
 # Main Loop
 start_time = time.monotonic()

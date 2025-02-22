@@ -6,6 +6,14 @@ def clear_text_boxes(matrix, offscreen_canvas):
     offscreen_canvas.Clear()
     matrix.SwapOnVSync(offscreen_canvas)
 
+def clamp_color_value(value):
+    return max(0, min(value, 255))
+
+def get_clamped_color(color_value):
+    return graphics.Color(clamp_color_value((color_value >> 16) & 0xFF),
+                          clamp_color_value((color_value >> 8) & 0xFF),
+                          clamp_color_value(color_value & 0xFF))
+
 def build_trip_text(trip, column, index):
     if column == 0:
         return str(index)
@@ -34,11 +42,13 @@ def start_grid(matrix, offscreen_canvas, font, trip_json):
     for j in range(4):
         if len(trip_json) > 0:
             text = build_trip_text(trip_json[0], j, 1)
-            color = graphics.Color(int(trip_json[0].get('route_color', 'FFFFFF'), 16))
+            color_value = int(trip_json[0].get('route_color', 'FFFFFF'), 16)
+            color = get_clamped_color(color_value)
             graphics.DrawText(offscreen_canvas, font, 0, j * 10 + 10, color, text)
         if len(trip_json) > 1:
             text = build_trip_text(trip_json[1], j, 2)
-            color = graphics.Color(int(trip_json[1].get('route_color', 'FFFFFF'), 16))
+            color_value = int(trip_json[1].get('route_color', 'FFFFFF'), 16)
+            color = get_clamped_color(color_value)
             graphics.DrawText(offscreen_canvas, font, 0, j * 10 + 20, color, text)
     matrix.SwapOnVSync(offscreen_canvas)
 
@@ -48,15 +58,18 @@ def update_grid(matrix, offscreen_canvas, font, trip_json, start_index=2, time_d
         for j in range(4):
             if trip_size > 0:
                 text = build_trip_text(trip_json[0], j, 1)
-                color = graphics.Color(int(trip_json[0].get('route_color', 'FFFFFF'), 16))
+                color_value = int(trip_json[0].get('route_color', 'FFFFFF'), 16)
+                color = get_clamped_color(color_value)
                 graphics.DrawText(offscreen_canvas, font, 0, j * 10 + 10, color, text)
             if trip_size > 1:
                 text = build_trip_text(trip_json[1], j, 2)
-                color = graphics.Color(int(trip_json[1].get('route_color', 'FFFFFF'), 16))
+                color_value = int(trip_json[1].get('route_color', 'FFFFFF'), 16)
+                color = get_clamped_color(color_value)
                 graphics.DrawText(offscreen_canvas, font, 0, j * 10 + 20, color, text)
             if trip_size > i:
                 text = build_trip_text(trip_json[i], j, i + 1)
-                color = graphics.Color(int(trip_json[i].get('route_color', 'FFFFFF'), 16))
+                color_value = int(trip_json[i].get('route_color', 'FFFFFF'), 16)
+                color = get_clamped_color(color_value)
                 graphics.DrawText(offscreen_canvas, font, 0, j * 10 + 30, color, text)
         matrix.SwapOnVSync(offscreen_canvas)
         time.sleep(time_delay)
