@@ -1,11 +1,12 @@
 import time
 import board
-from adafruit_matrixportal.matrixportal import MatrixPortal
+from rgbmatrix import RGBMatrix, RGBMatrixOptions, graphics
 import gtfs_realtime_pb2
-import gc  # Import garbage collection module
+import gc
 import os
 
 from adafruit_datetime import datetime
+from display import clear_text_boxes, start_grid, update_grid
 
 # Load configuration from environment variables
 REFRESH_TIME_DELAY = int(os.getenv("REFRESH_TIME_DELAY"))
@@ -203,70 +204,33 @@ def fetch_trip_data(retries=3):
 
 
 ### Prepare the Display
-# Initialize the MatrixPortal
-matrixportal = MatrixPortal(status_neopixel=board.NEOPIXEL, bit_depth=3)
-
-# Build the grid
-for i in range(3):
-    for j in range(4):
-        cell_index = i * 4 + j
-        matrixportal.add_text(
-            text_font=FONT if j!=1 else LINE_FONT,
-            text_scale=FONT_SCALE,
-            text_position=CELL_POSITIONS[cell_index],
-            text_color=0xFFFFFF,
-            text="",
-            scrolling=False,
-            text_maxlen=10 if j == 2 else 2,
-        )
-
-# Add the countdown timer text box
-matrixportal.add_text(
-    text_font=FONT,
-    text_scale=FONT_SCALE,
-    text_position=COUNTDOWN_POSITION,
-    text_color=0xFFFFFF,
-    text="",
-    scrolling=False,
-    text_maxlen=200,
-)
-
+# Initialize the RGBMatrix
+options = RGBMatrixOptions()
+options.rows = 32
+options.cols = 64
+options.chain_length = 1
+options.parallel = 1
+options.hardware_mapping = 'adafruit-hat'
+matrix = RGBMatrix(options=options)
+offscreen_canvas = matrix.CreateFrameCanvas()
+font = graphics.Font()
+font.LoadFont("/home/pi/rpi-rgb-led-matrix/fonts/7x13.bdf")
 
 # Prepare Station Data
-matrixportal.set_text("booting...", 2)
-matrixportal.set_text(MTA_STOP, 6)
-matrixportal.set_text(f"{','.join(MTA_ROUTES)}", 10)
-# Load data once at startup
 stops = get_stops(MTA_STOP, MTA_DIRECTIONS)
 trip_directions = get_trip_directions(routes=MTA_ROUTES)
 route_colors = get_route_colors(routes=MTA_ROUTES)
-#reset text
-matrixportal.set_text("", 2)
-matrixportal.set_text("", 6)
-matrixportal.set_text("", 10)
-# report configuration
-line_textbox = 1
-station_textbox = 2
-increment = 0
-for r in MTA_ROUTES:
-    matrixportal.set_text_color(int(route_colors.get(r, 'FFFFFF'), 16), line_textbox+increment)
-    matrixportal.set_text(f"{r}", line_textbox+increment)
-    increment += 4
 
-time.sleep(5)
-
-
-
-### Main Loop
-# Keep the display on and update trip data in a loop
+# Main Loop
 start_time = time.monotonic()
-time.sleep(1)  # Wait for the display to initialize
+time.sleep(1)
 TRIP_JSON = fetch_trip_data()
-# while True:
-#     if (time.monotonic() - start_time) > REFRESH_TIME_DELAY:
-#         clear_text_boxes()
-#         TRIP_JSON = fetch_trip_data()
-#         start_time = time.monotonic()
-#         start_grid(TRIP_JSON)
-#     update_grid(TRIP_JSON, start_index=2)  # Update only the last row
-#     gc.collect()  # Force garbage collection
+
+while True:
+    if (time.monotonic() - start_time) > REFRESH_TIME_DELAY:
+        clear_text_boxes(matrix, offscreen_canvas)
+        TRIP_JSON = fetch_trip_data()
+        start_time = time.monotonic()
+        start_grid(matrix, offscreen_canvas, font, TRIP_JSON)
+    update_grid(matrix, offscreen_canvas, font, TRIP_JSON, start_index=2)
+    gc.collect()

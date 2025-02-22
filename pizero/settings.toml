@@ -8,6 +8,7 @@ MTA_DIRECTIONS = "N,S"
 
 ## Timings
 REFRESH_TIME_DELAY = 30
+ROTATE_TRIP_DELAY = 4
 MINIMUM_ARRIVAL_MINUTES = 2
 
 #############################################################

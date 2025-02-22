@@ -1,6 +1,10 @@
 from trips import get_stops, get_trip_directions, get_mta_data, get_route_colors
 import toml
 import pathlib
+import time
+import gc
+from rgbmatrix import RGBMatrix, RGBMatrixOptions, graphics
+from display import clear_text_boxes, start_grid, update_grid
 
 #get current file path
 cwd = pathlib.Path(__file__).parent.parent
@@ -11,6 +15,7 @@ with open(cwd / 'settings.toml', 'r') as file:
 
 # Load configuration from environment variables
 REFRESH_TIME_DELAY = int(config["REFRESH_TIME_DELAY"])
+ROTATE_TRIP_DELAY = int(config["ROTATE_TRIP_DELAY"])
 MINIMUM_ARRIVAL_MINUTES = int(config["MINIMUM_ARRIVAL_MINUTES"])
 MTA_ROUTES = list(config["MTA_ROUTES"].split(','))
 MTA_STOP = config["MTA_STOP"]
@@ -24,7 +29,7 @@ trip_directions = get_trip_directions()
 route_colors = get_route_colors()
 
 def get_subway_times(max_list=5, min_arrival=MINIMUM_ARRIVAL_MINUTES):
-    trips = get_mta_data(MTA_ROUTES,stations, trip_directions)
+    trips = get_mta_data(MTA_ROUTES, stations, trip_directions)
 
     # Filter out trips that are too close to arrival
     trips = [trip for trip in trips if trip['minutes_until_arrival'] >= min_arrival]
@@ -38,41 +43,51 @@ def get_subway_times(max_list=5, min_arrival=MINIMUM_ARRIVAL_MINUTES):
 
     return sorted_trips
 
-#!/usr/bin/env python
-# Display a runtext with double-buffering.
-from samplebase import SampleBase
-from rgbmatrix import graphics
-import time
+# Fetch trip data with proper reconnection logic
+def fetch_trip_data(retries=3):
+    gc.collect()  # Force garbage collection
+    attempt = 0
+    while attempt < retries:
+        try:
+            trips = get_subway_times()
+            if not trips:
+                raise ValueError("No trips found")
+            return trips
+        except Exception as e:
+            print(f"Error fetching trip data (attempt {attempt + 1}): {e}")
+            attempt += 1
+            time.sleep(REFRESH_TIME_DELAY)  # Wait before retrying
 
-rpi_rgb_matrix_path = pathlib.Path(__file__).parent.parent.parent.parent.parent / "rpi-rgb-led-matrix"
+    return None
 
-class RunText(SampleBase):
-    def __init__(self, *args, **kwargs):
-        super(RunText, self).__init__(*args, **kwargs)
-        self.parser.add_argument("-t", "--text", help="The text to scroll on the RGB LED panel", default="Hello world!")
+# Initialize the RGBMatrix
+options = RGBMatrixOptions()
+options.rows = 32
+options.cols = 64
+options.chain_length = 1
+options.parallel = 1
+options.hardware_mapping = 'adafruit-hat'
+matrix = RGBMatrix(options=options)
+offscreen_canvas = matrix.CreateFrameCanvas()
+font = graphics.Font()
+font.LoadFont("/home/pi/rpi-rgb-led-matrix/fonts/7x13.bdf")
 
-    def run(self):
-        offscreen_canvas = self.matrix.CreateFrameCanvas()
-        font = graphics.Font()
-        font.LoadFont(str(rpi_rgb_matrix_path / "fonts" / "7x13.bdf"))
-        textColor = graphics.Color(255, 255, 0)
-        pos = offscreen_canvas.width
-        my_text = self.args.text
+# Prepare Station Data
+stops = get_stops(MTA_STOP, MTA_DIRECTIONS)
+trip_directions = get_trip_directions(routes=MTA_ROUTES)
+route_colors = get_route_colors(routes=MTA_ROUTES)
 
-        while True:
-            offscreen_canvas.Clear()
-            len = graphics.DrawText(offscreen_canvas, font, pos, 10, textColor, my_text)
-            pos -= 1
-            if (pos + len < 0):
-                pos = offscreen_canvas.width
+# Main Loop
+start_time = time.monotonic()
+time.sleep(1)
+TRIP_JSON = fetch_trip_data()
 
-            time.sleep(0.05)
-            offscreen_canvas = self.matrix.SwapOnVSync(offscreen_canvas)
-
-
-# Main function
-if __name__ == "__main__":
-    run_text = RunText()
-    if (not run_text.process()):
-        run_text.print_help()
+while True:
+    if (time.monotonic() - start_time) > REFRESH_TIME_DELAY:
+        clear_text_boxes(matrix, offscreen_canvas)
+        TRIP_JSON = fetch_trip_data()
+        start_time = time.monotonic()
+        start_grid(matrix, offscreen_canvas, font, TRIP_JSON)
+    update_grid(matrix, offscreen_canvas, font, TRIP_JSON, start_index=2, time_delay=ROTATE_TRIP_DELAY)
+    gc.collect()
 

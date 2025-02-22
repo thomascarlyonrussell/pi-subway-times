@@ -75,7 +75,7 @@ def get_mta_data(routes, stations, trip_directions):
                             trip['line'] = entity_trip.trip.route_id
                             trip['arrival_time'] = arrival_time.strftime('%H:%M')
                             trip['minutes_until_arrival'] = int((arrival_time.timestamp() - current_time) // 60)
-                            trip['direction'] = trip_directions.get(entity_trip.trip.trip_id.split('.')[-1], 'Hogwarts')
+                            trip['direction'] = trip_directions.get(entity_trip.trip.trip_id.split('.')[-1], 'Unknown')
                             trips.append(trip)
         else:
             print(f"Failed to retrieve data from {url}: {response.status_code}")
