@@ -4,7 +4,7 @@ import sys
 import pathlib
 
 rbgmatrixpath = pathlib.Path(__file__).parent.parent.parent.parent.parent / "rpi-rgb-led-matrix" / "bindings" / "python"
-sys.path.append(str(rbgmatrixpath / ".."))
+sys.path.append(str(rbgmatrixpath))
 from rgbmatrix import RGBMatrix, RGBMatrixOptions
 
 class SampleBase(object):

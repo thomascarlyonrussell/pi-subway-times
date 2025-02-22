@@ -44,6 +44,8 @@ from samplebase import SampleBase
 from rgbmatrix import graphics
 import time
 
+rpi_rgb_matrix_path = pathlib.Path(__file__).parent.parent.parent.parent.parent / "rpi-rgb-led-matrix"
+
 class RunText(SampleBase):
     def __init__(self, *args, **kwargs):
         super(RunText, self).__init__(*args, **kwargs)
@@ -52,7 +54,7 @@ class RunText(SampleBase):
     def run(self):
         offscreen_canvas = self.matrix.CreateFrameCanvas()
         font = graphics.Font()
-        font.LoadFont("../../../fonts/7x13.bdf")
+        font.LoadFont(str(rpi_rgb_matrix_path / "fonts" / "7x13.bdf"))
         textColor = graphics.Color(255, 255, 0)
         pos = offscreen_canvas.width
         my_text = self.args.text
