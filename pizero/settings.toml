@@ -1,0 +1,20 @@
+#############################################################
+# Local Settings
+
+## Subway Selection
+MTA_ROUTES = "F,A"
+MTA_STOP = "Jay St-MetroTech"
+MTA_DIRECTIONS = "N,S"
+
+## Timings
+REFRESH_TIME_DELAY = 30
+MINIMUM_ARRIVAL_MINUTES = 2
+
+#############################################################
+
+#############################################################
+# System Settings
+
+## API
+MTA_FEED_BASE_URL = "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2F"
+#############################################################
