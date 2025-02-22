@@ -10,7 +10,7 @@ def get_subway_times(max_list=5):
     trips = get_mta_data(stations, trip_directions)
 
     # Sort trips by arrival time and get the specified number of trips
-    sorted_trips = sorted(trips, key=lambda x: x['arrival_time'])[:max_list]
+    sorted_trips = sorted(trips, key=lambda x: x['minutes_until_arrival'])[:max_list]
 
     # Add route color to each trip
     for trip in sorted_trips:
