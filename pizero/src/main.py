@@ -1,16 +1,22 @@
-from trips import Trips
 import toml
 import pathlib
 import time
-import gc
-from rgbmatrix import RGBMatrix, RGBMatrixOptions, graphics
-from display import get_clamped_color
+import os
 
 #get current file path
-cwd = pathlib.Path(__file__).parent.parent
+app_dir = pathlib.Path(__file__).parent.parent
+rgb_dir = app_dir.parent.parent / 'rpi-rgb-led-matrix' / 'bindings' / 'python'
+
+# Add rgbmatrix folder to system path
+os.sys.path.append(str(rgb_dir))
+
+from rgbmatrix import RGBMatrix, RGBMatrixOptions, graphics
+from display import get_clamped_color
+from trips import Trips
+
 
 # Load the TOML file
-with open(cwd / 'settings.toml', 'r') as file:
+with open(app_dir / 'settings.toml', 'r') as file:
     config = toml.load(file)
 
 # Load configuration from environment variables
@@ -46,10 +52,10 @@ canvas = matrix.CreateFrameCanvas()
 
 ## Set main text font
 font = graphics.Font()
-font.LoadFont(str(cwd / 'fonts' / "10-Adobe-Helvetica.bdf"))
+font.LoadFont(str(app_dir / 'fonts' / "10-Adobe-Helvetica.bdf"))
 ## Set route font
 route_font = graphics.Font()
-route_font.LoadFont(str(cwd / 'fonts' / "mta.bdf"))
+route_font.LoadFont(str(app_dir / 'fonts' / "mta.bdf"))
 
 # Main Loop
 start_time = time.monotonic()
