@@ -5,7 +5,6 @@ import csv
 import pathlib
 import toml
 import time
-
 class Trips:
     def __init__(self, station, directions, routes):
         self.cwd = pathlib.Path(__file__).parent.parent
