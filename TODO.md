@@ -5,6 +5,7 @@
 - [ ] How users setup local wifi
 - [ ] Get mta/data from internet dynamically
 - [ ] Change from mta font to image draw
+- [ ] custom mapping of trip directions
 - [ ] MTA font 
   - [ ] 1
   - [ ] 2
