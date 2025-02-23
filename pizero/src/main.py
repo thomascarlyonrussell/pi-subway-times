@@ -17,34 +17,36 @@ with open(cwd / 'settings.toml', 'r') as file:
 REFRESH_TIME_DELAY = int(config["REFRESH_TIME_DELAY"])
 ROTATE_TRIP_DELAY = int(config["ROTATE_TRIP_DELAY"])
 MINIMUM_ARRIVAL_MINUTES = int(config["MINIMUM_ARRIVAL_MINUTES"])
+LED_ROWS = int(config["LED_ROWS"])
+LED_COLS = int(config["LED_COLS"])
+LED_CHAIN_LENGTH = int(config["LED_CHAIN_LENGTH"])
+LED_PARALLEL = int(config["LED_PARALLEL"])
+LED_HARDWARE_MAPPING = config["LED_HARDWARE_MAPPING"]
+
 MTA_ROUTES = list(config["MTA_ROUTES"].split(','))
 MTA_STOP = config["MTA_STOP"]
 MTA_DIRECTIONS = list(config["MTA_DIRECTIONS"].split(','))
-
 MTA_FEED_BASE_URL = config['MTA_FEED_BASE_URL']
 
 # Load data once at startup
 stations = get_stops(MTA_STOP, MTA_DIRECTIONS)
-trip_directions = get_trip_directions()
-route_colors = get_route_colors()
+trip_directions = get_trip_directions(routes=MTA_ROUTES)
+route_colors = get_route_colors(routes=MTA_ROUTES)
+stops = get_stops(MTA_STOP, MTA_DIRECTIONS)
 
 # Initialize the RGBMatrix
 options = RGBMatrixOptions()
-options.rows = 32
-options.cols = 64
-options.chain_length = 1
-options.parallel = 1
-options.hardware_mapping = 'adafruit-hat'
+options.rows = LED_ROWS
+options.cols = LED_COLS
+options.chain_length = LED_CHAIN_LENGTH
+options.parallel = LED_PARALLEL
+options.hardware_mapping = LED_HARDWARE_MAPPING
+## send the options to the RGBMatrix
 matrix = RGBMatrix(options=options)
-offscreen_canvas = matrix.CreateFrameCanvas()
-font = graphics.Font()
-font.LoadFont("/home/pi/rpi-rgb-led-matrix/fonts/7x13.bdf")
+## create a frame canvas
+canvas = matrix.CreateFrameCanvas()
 
-# Prepare Station Data
-stops = get_stops(MTA_STOP, MTA_DIRECTIONS)
-trip_directions = get_trip_directions()
-route_colors = get_route_colors()
-
+# Function to build the text for each trip
 def get_subway_times(max_list=5, min_arrival=MINIMUM_ARRIVAL_MINUTES):
     trips = get_mta_data(MTA_ROUTES, stations, trip_directions)
 
@@ -84,10 +86,10 @@ TRIP_JSON = fetch_trip_data()
 
 while True:
     if (time.monotonic() - start_time) > REFRESH_TIME_DELAY:
-        clear_text_boxes(matrix, offscreen_canvas)
+        clear_text_boxes(matrix, canvas)
         TRIP_JSON = fetch_trip_data()
         start_time = time.monotonic()
-        start_grid(matrix, offscreen_canvas, font, TRIP_JSON)
-    update_grid(matrix, offscreen_canvas, font, TRIP_JSON, start_index=2, time_delay=ROTATE_TRIP_DELAY)
+        start_grid(matrix, canvas, TRIP_JSON)
+    update_grid(matrix, canvas, TRIP_JSON, start_index=2, time_delay=ROTATE_TRIP_DELAY)
     gc.collect()
 

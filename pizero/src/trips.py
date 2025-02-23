@@ -36,21 +36,25 @@ def get_stops(station, directions=None):
                     stops.append(row[0])
     return stops
 
-def get_trip_directions():
+def get_trip_directions(routes=[]):
     trip_directions = {}
     with open(cwd / 'data' / 'trips.txt', 'r') as file:
         for line in file:
             row = line.strip().split(',')
-            trip_directions[row[1].split('.')[-1]] = row[3]
+            if not routes or row[0] in routes:
+                trip_directions[row[1].split('.')[-1]] = row[3]
+            else: continue
     return trip_directions
 
-def get_route_colors():
+def get_route_colors(routes=[]):
     route_colors = {}
     with open(cwd / 'data' / 'routes.txt', 'r') as file:
         reader = csv.reader(file)
         next(reader)  # Skip header
         for row in reader:
-            route_colors[row[1]] = row[7]  # route_id and route_color
+            if not routes or row[1] in routes:
+                route_colors[row[1]] = row[7]  # route_id and route_color
+            else: continue
     return route_colors
 
 def get_mta_data(routes, stations, trip_directions):

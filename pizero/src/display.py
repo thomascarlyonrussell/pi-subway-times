@@ -1,5 +1,16 @@
-from rgbmatrix import graphics
+from rgbmatrix import RGBMatrix, RGBMatrixOptions, graphics
 import time
+import pathlib
+
+#get current file path
+cwd = pathlib.Path(__file__).parent.parent
+
+## Set main text font
+font = graphics.Font()
+font.LoadFont(cwd / 'fonts' / "10-Adobe-Helvetica.bdf")
+## Set route font
+route_font = graphics.Font()
+route_font.LoadFont(cwd / 'fonts' / "mta.bdf")
 
 # Function to clear all text boxes
 def clear_text_boxes(matrix, offscreen_canvas):
@@ -38,7 +49,7 @@ def update_countdown_timer(matrix, offscreen_canvas, start_time, refresh_time_de
     matrix.SwapOnVSync(offscreen_canvas)
     return
 
-def start_grid(matrix, offscreen_canvas, font, trip_json):
+def start_grid(matrix, offscreen_canvas, trip_json):
     for j in range(4):
         if len(trip_json) > 0:
             text = build_trip_text(trip_json[0], j, 1)
@@ -52,7 +63,7 @@ def start_grid(matrix, offscreen_canvas, font, trip_json):
             graphics.DrawText(offscreen_canvas, font, 0, j * 10 + 20, color, text)
     matrix.SwapOnVSync(offscreen_canvas)
 
-def update_grid(matrix, offscreen_canvas, font, trip_json, start_index=2, time_delay=0.5):
+def update_grid(matrix, offscreen_canvas, trip_json, start_index=2, time_delay=0.5):
     trip_size = len(trip_json)
     for i in range(start_index, trip_size):
         for j in range(4):
