@@ -17,56 +17,12 @@
 2. Write the image to the SD card using Etcher: https://etcher.io/
 3. Insert the SD card into the Raspberry Pi and boot it up.
 4. Follow the on-screen instructions to set up the system.
-5. Update the system by running the following commands:
-```bash
-sudo apt-get update
-sudo apt-get upgrade
-```
-6. Reboot the system to apply the changes.
-```bash
-sudo reboot
-```
+5. Update the system by running the shell script
 
-### Install Python
-1. Check if Python is already installed by running the following command:
 ```bash
-python --version
-```
-2. If Python is not installed, install it by running the following command:
-```bash
-sudo apt-get install python3
-```
-3. Check if Python is installed correctly by running the following command:
-```bash
-python --version
-```
-
-### Install Git
-1. Check if Git is already installed by running the following command:
-```bash
-git --version
-```
-2. If Git is not installed, install it by running the following command:
-```bash
-sudo apt-get install git
-```
-3. Check if Git is installed correctly by running the following command:
-```bash
-git --version
-```
-
-### Clone the Repository
-1. Clone the repository to your Raspberry Pi by running the following command:
-```bash
-git clone
-```
-2. Navigate to the repository directory by running the following command:
-```bash
-cd
-```
-3. Install the required Python packages by running the following command:
-```bash
-pip install -r requirements.txt
+wget https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/setup_subway_sign.sh
+chmod +x setup_subway_sign.sh
+./setup_subway_sign.sh
 ```
 
 ### Update and Configure Bonnet
@@ -89,3 +45,68 @@ sudo python "pizero/src/main.py"
 ```
 2. The program will start running and display the output on the screen.
 3. Press `Ctrl + C` to stop the program.
+
+### Setup Startup Script
+This is a more robust way to start a script on boot.
+
+Create a new service file:
+bash
+```sudo nano /etc/systemd/system/myscript.service```
+
+Save and exit (CTRL + X, then Y, then ENTER).
+Enable the service so it starts on boot:
+Start the service manually to test:
+Check status:
+Reboot and verify:
+
+```bash
+sudo systemctl enable myscript.service
+sudo systemctl start myscript.service 
+sudo systemctl status myscript.service
+sudo reboot
+```
+
+### Setup Web SErvice Startup 
+
+#### Store Settings
+
+`/etc/matrix_config.json`
+
+#### Store Wifi Hotspot Settings
+
+`/etc/hostapd/hostapd.conf`
+
+```bash
+sudo systemctl enable web-config.service
+sudo systemctl start web-config.service 
+sudo systemctl status web-config.service
+sudo reboot
+```
+
+- On boot, check if the device is connected to WiFi.
+- If WiFi is not connected, enable AP mode and start the Flask web server.
+- Users connect to the SubwaySign-Setup network and access the web UI at http://192.168.4.1:5000.
+- After entering their details, the app saves them and restarts the Pi.
+
+
+### Rotate Logs
+
+```bash
+sudo nano /etc/logrotate.d/subway-sign
+```
+
+```bash
+/var/log/subway-sign/*.log {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    create 644 root root
+    sharedscripts
+    postrotate
+        systemctl restart subway-sign
+    endscript
+}
+```
