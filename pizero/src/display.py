@@ -1,21 +1,16 @@
 from rgbmatrix import RGBMatrix, RGBMatrixOptions, graphics
 import time
 import pathlib
+import toml
 
 #get current file path
 cwd = pathlib.Path(__file__).parent.parent
 
-## Set main text font
-font = graphics.Font()
-font.LoadFont(cwd / 'fonts' / "10-Adobe-Helvetica.bdf")
-## Set route font
-route_font = graphics.Font()
-route_font.LoadFont(cwd / 'fonts' / "mta.bdf")
+# Load the TOML file
+with open(cwd / 'settings.toml', 'r') as file:
+    config = toml.load(file)
 
-# Function to clear all text boxes
-def clear_text_boxes(matrix, offscreen_canvas):
-    offscreen_canvas.Clear()
-    matrix.SwapOnVSync(offscreen_canvas)
+LED_ROWS = int(config["LED_ROWS"])
 
 def clamp_color_value(value):
     return max(0, min(value, 255))
@@ -36,34 +31,32 @@ def build_trip_text(trip, column, index):
         return str(trip["minutes_until_arrival"])
 
 # Function to update the countdown timer
-def update_countdown_timer(matrix, offscreen_canvas, start_time, refresh_time_delay):
+def update_countdown_timer(matrix, canvas, start_time, refresh_time_delay):
     elapsed_time = time.monotonic() - start_time
-    total_pixels = 32  # Assuming the width of the display is 32 pixels
+    total_pixels = LED_ROWS  # Assuming the width of the display is 32 pixels
     pixels_on = int(((refresh_time_delay - elapsed_time) / refresh_time_delay) * total_pixels)
     countdown_text = "i" * pixels_on + " " * (total_pixels - pixels_on)
-    font = graphics.Font()
-    font.LoadFont("/home/pi/rpi-rgb-led-matrix/fonts/7x13.bdf")
     color = graphics.Color(255, 255, 255)
-    offscreen_canvas.Clear()
-    graphics.DrawText(offscreen_canvas, font, 0, 26, color, countdown_text)
-    matrix.SwapOnVSync(offscreen_canvas)
+    canvas.Clear()
+    graphics.DrawText(canvas, font, 0, 30, color, countdown_text)
+    matrix.SwapOnVSync(canvas)
     return
 
-def start_grid(matrix, offscreen_canvas, trip_json):
+def start_grid(matrix, canvas, trip_json):
     for j in range(4):
         if len(trip_json) > 0:
             text = build_trip_text(trip_json[0], j, 1)
             color_value = int(trip_json[0].get('route_color', 'FFFFFF'), 16)
             color = get_clamped_color(color_value)
-            graphics.DrawText(offscreen_canvas, font, 0, j * 10 + 10, color, text)
+            graphics.DrawText(canvas, font, 0, j * 10 + 10, color, text)
         if len(trip_json) > 1:
             text = build_trip_text(trip_json[1], j, 2)
             color_value = int(trip_json[1].get('route_color', 'FFFFFF'), 16)
             color = get_clamped_color(color_value)
-            graphics.DrawText(offscreen_canvas, font, 0, j * 10 + 20, color, text)
-    matrix.SwapOnVSync(offscreen_canvas)
+            graphics.DrawText(canvas, font, 0, j * 10 + 20, color, text)
+    matrix.SwapOnVSync(canvas)
 
-def update_grid(matrix, offscreen_canvas, trip_json, start_index=2, time_delay=0.5):
+def update_grid(matrix, canvas, trip_json, start_index=2, time_delay=0.5):
     trip_size = len(trip_json)
     for i in range(start_index, trip_size):
         for j in range(4):
@@ -71,17 +64,17 @@ def update_grid(matrix, offscreen_canvas, trip_json, start_index=2, time_delay=0
                 text = build_trip_text(trip_json[0], j, 1)
                 color_value = int(trip_json[0].get('route_color', 'FFFFFF'), 16)
                 color = get_clamped_color(color_value)
-                graphics.DrawText(offscreen_canvas, font, 0, j * 10 + 10, color, text)
+                graphics.DrawText(canvas, font, 0, j * 10 + 10, color, text)
             if trip_size > 1:
                 text = build_trip_text(trip_json[1], j, 2)
                 color_value = int(trip_json[1].get('route_color', 'FFFFFF'), 16)
                 color = get_clamped_color(color_value)
-                graphics.DrawText(offscreen_canvas, font, 0, j * 10 + 20, color, text)
+                graphics.DrawText(canvas, font, 0, j * 10 + 20, color, text)
             if trip_size > i:
                 text = build_trip_text(trip_json[i], j, i + 1)
                 color_value = int(trip_json[i].get('route_color', 'FFFFFF'), 16)
                 color = get_clamped_color(color_value)
-                graphics.DrawText(offscreen_canvas, font, 0, j * 10 + 30, color, text)
-        matrix.SwapOnVSync(offscreen_canvas)
+                graphics.DrawText(canvas, font, 0, j * 10 + 30, color, text)
+        matrix.SwapOnVSync(canvas)
         time.sleep(time_delay)
     return

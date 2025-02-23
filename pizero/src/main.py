@@ -1,10 +1,10 @@
-from trips import get_stops, get_trip_directions, get_mta_data, get_route_colors
+from trips import Trips
 import toml
 import pathlib
 import time
 import gc
 from rgbmatrix import RGBMatrix, RGBMatrixOptions, graphics
-from display import clear_text_boxes, start_grid, update_grid
+from display import start_grid, get_clamped_color
 
 #get current file path
 cwd = pathlib.Path(__file__).parent.parent
@@ -18,7 +18,7 @@ REFRESH_TIME_DELAY = int(config["REFRESH_TIME_DELAY"])
 ROTATE_TRIP_DELAY = int(config["ROTATE_TRIP_DELAY"])
 MINIMUM_ARRIVAL_MINUTES = int(config["MINIMUM_ARRIVAL_MINUTES"])
 LED_ROWS = int(config["LED_ROWS"])
-LED_COLS = int(config["LED_COLS"])
+LED_COLUMNS = int(config["LED_COLUMNS"])
 LED_CHAIN_LENGTH = int(config["LED_CHAIN_LENGTH"])
 LED_PARALLEL = int(config["LED_PARALLEL"])
 LED_HARDWARE_MAPPING = config["LED_HARDWARE_MAPPING"]
@@ -29,15 +29,12 @@ MTA_DIRECTIONS = list(config["MTA_DIRECTIONS"].split(','))
 MTA_FEED_BASE_URL = config['MTA_FEED_BASE_URL']
 
 # Load data once at startup
-stations = get_stops(MTA_STOP, MTA_DIRECTIONS)
-trip_directions = get_trip_directions(routes=MTA_ROUTES)
-route_colors = get_route_colors(routes=MTA_ROUTES)
-stops = get_stops(MTA_STOP, MTA_DIRECTIONS)
+trips = Trips(MTA_STOP, MTA_DIRECTIONS, MTA_ROUTES)
 
 # Initialize the RGBMatrix
 options = RGBMatrixOptions()
 options.rows = LED_ROWS
-options.cols = LED_COLS
+options.cols = LED_COLUMNS
 options.chain_length = LED_CHAIN_LENGTH
 options.parallel = LED_PARALLEL
 options.hardware_mapping = LED_HARDWARE_MAPPING
@@ -46,50 +43,54 @@ matrix = RGBMatrix(options=options)
 ## create a frame canvas
 canvas = matrix.CreateFrameCanvas()
 
-# Function to build the text for each trip
-def get_subway_times(max_list=5, min_arrival=MINIMUM_ARRIVAL_MINUTES):
-    trips = get_mta_data(MTA_ROUTES, stations, trip_directions)
-
-    # Filter out trips that are too close to arrival
-    trips = [trip for trip in trips if trip['minutes_until_arrival'] >= min_arrival]
-
-    # Sort trips by arrival time and get the specified number of trips
-    sorted_trips = sorted(trips, key=lambda x: x['minutes_until_arrival'])[:max_list]
-
-    # Add route color to each trip
-    for trip in sorted_trips:
-        trip['route_color'] = route_colors.get(trip['line'], 'FFFFFF')
-
-    return sorted_trips
-
-# Fetch trip data with proper reconnection logic
-def fetch_trip_data(retries=3):
-    gc.collect()  # Force garbage collection
-    attempt = 0
-    while attempt < retries:
-        try:
-            trips = get_subway_times()
-            if not trips:
-                raise ValueError("No trips found")
-            return trips
-        except Exception as e:
-            print(f"Error fetching trip data (attempt {attempt + 1}): {e}")
-            attempt += 1
-            time.sleep(REFRESH_TIME_DELAY)  # Wait before retrying
-
-    return None
+## Set main text font
+font = graphics.Font()
+font.LoadFont(str(cwd / 'fonts' / "10-Adobe-Helvetica.bdf"))
+## Set route font
+route_font = graphics.Font()
+route_font.LoadFont(str(cwd / 'fonts' / "mta.bdf"))
 
 # Main Loop
 start_time = time.monotonic()
 time.sleep(1)
-TRIP_JSON = fetch_trip_data()
+TRIP_JSON = trips.fetch_trip_data()
+bottom_row_index = 0
 
 while True:
     if (time.monotonic() - start_time) > REFRESH_TIME_DELAY:
-        clear_text_boxes(matrix, canvas)
-        TRIP_JSON = fetch_trip_data()
+        canvas.Clear()
+        TRIP_JSON = trips.fetch_trip_data()
         start_time = time.monotonic()
-        start_grid(matrix, canvas, TRIP_JSON)
-    update_grid(matrix, canvas, TRIP_JSON, start_index=2, time_delay=ROTATE_TRIP_DELAY)
-    gc.collect()
+    if (time.monotonic() - rotate_time) > ROTATE_TRIP_DELAY:
+        bottom_row_index =  bottom_row_index + 1 if bottom_row_index < len(TRIP_JSON) - 1 else 0
+        rotate_time = time.monotonic()
 
+    # First Row
+    color_value = int(TRIP_JSON[0].get('route_color', 'FFFFFF'), 16)
+    color = get_clamped_color(color_value)
+    graphics.DrawText(canvas, font, 0, 0, color, TRIP_JSON[0]["line"])
+    graphics.DrawText(canvas, font, 10, 0, color, TRIP_JSON[0]["direction"])
+    graphics.DrawText(canvas, font, 25, 0, color, str(TRIP_JSON[0]["minutes_until_arrival"]))
+
+    # Second Row
+    color_value = int(TRIP_JSON[1].get('route_color', 'FFFFFF'), 16)
+    color = get_clamped_color(color_value)
+    graphics.DrawText(canvas, font, 0, 10, color, TRIP_JSON[1]["line"])
+    graphics.DrawText(canvas, font, 10, 10, color, TRIP_JSON[1]["direction"])
+    graphics.DrawText(canvas, font, 25, 10, color, str(TRIP_JSON[1]["minutes_until_arrival"]))
+
+    # Third Row
+    color_value = int(TRIP_JSON[bottom_row_index].get('route_color', 'FFFFFF'), 16)
+    color = get_clamped_color(color_value)
+    graphics.DrawText(canvas, font, 0, 20, color, TRIP_JSON[bottom_row_index]["line"])
+    graphics.DrawText(canvas, font, 10, 20, color, TRIP_JSON[bottom_row_index]["direction"])
+    graphics.DrawText(canvas, font, 25, 20, color, str(TRIP_JSON[bottom_row_index]["minutes_until_arrival"]))
+
+    elapsed_time = time.monotonic() - start_time
+    pixels_on = int(((REFRESH_TIME_DELAY - elapsed_time) / REFRESH_TIME_DELAY) * LED_ROWS)
+    countdown_text = "i" * pixels_on + " " * (LED_ROWS - pixels_on)
+    color = graphics.Color(255, 255, 255)
+    graphics.DrawText(canvas, font, 0, 30, color, countdown_text)
+
+    matrix.SwapOnVSync(canvas)
+    time.sleep(0.5)
