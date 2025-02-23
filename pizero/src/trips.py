@@ -87,11 +87,11 @@ class Trips:
 
         return trips
 
-    def get_subway_times(self, stations, trip_directions, route_colors, max_list=5, min_arrival=0):
+    def get_subway_times(self, stations, trip_directions, route_colors, max_list=5, min_arrival=0, max_arrival=99):
         trips = self.get_mta_data(stations, trip_directions)
 
         # Filter out trips that are too close to arrival
-        trips = [trip for trip in trips if trip['minutes_until_arrival'] >= min_arrival]
+        trips = [trip for trip in trips if (trip['minutes_until_arrival'] >= min_arrival) & (trip['minutes_until_arrival'] <= max_arrival)]
 
         # Sort trips by arrival time and get the specified number of trips
         sorted_trips = sorted(trips, key=lambda x: x['minutes_until_arrival'])[:max_list]
@@ -108,7 +108,9 @@ class Trips:
             try:
                 trips = self.get_subway_times(
                             self.get_stops(), self.get_trip_directions(), self.get_route_colors(),
-                            max_list=5, min_arrival=int(self.config["MINIMUM_ARRIVAL_MINUTES"])
+                            max_list=5, 
+                            min_arrival=int(self.config["MINIMUM_ARRIVAL_MINUTES"]),
+                            max_arrival=int(self.config["MAXIMUM_ARRIVAL_MINUTES"])
                             )
                 if not trips:
                     raise ValueError("No trips found")
