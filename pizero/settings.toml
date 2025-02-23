@@ -1,0 +1,31 @@
+#############################################################
+# Local Settings
+
+## Subway Selection
+MTA_ROUTES = "F,G"
+MTA_STOP = "7 Av"
+MTA_DIRECTIONS = "N"
+
+## Timings
+REFRESH_TIME_DELAY = 30
+ROTATE_TRIP_DELAY = 4
+SCREEN_REFRESH_INTERVAL = 2
+MINIMUM_ARRIVAL_MINUTES = 2
+MAXIMUM_ARRIVAL_MINUTES = 99
+
+#############################################################
+
+#############################################################
+# System Settings
+
+## Display 
+LED_ROWS = 32
+LED_COLUMNS = 64
+LED_CHAIN_LENGTH = 1
+LED_PARALLEL = 1
+LED_HARDWARE_MAPPING = "adafruit-hat"
+LINE_DIRECTION_MAX_LENGTH = 10
+
+## API
+MTA_FEED_BASE_URL = "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2F"
+#############################################################
