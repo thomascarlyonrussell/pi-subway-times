@@ -52,45 +52,46 @@ route_font.LoadFont(str(cwd / 'fonts' / "mta.bdf"))
 
 # Main Loop
 start_time = time.monotonic()
+rotate_time = start_time
 time.sleep(1)
 TRIP_JSON = trips.fetch_trip_data()
 bottom_row_index = 0
 
 while True:
     if (time.monotonic() - start_time) > REFRESH_TIME_DELAY:
-        canvas.Clear()
         TRIP_JSON = trips.fetch_trip_data()
         start_time = time.monotonic()
     if (time.monotonic() - rotate_time) > ROTATE_TRIP_DELAY:
         bottom_row_index =  bottom_row_index + 1 if bottom_row_index < len(TRIP_JSON) - 1 else 0
         rotate_time = time.monotonic()
 
+    canvas.Clear()
     # First Row
     color_value = int(TRIP_JSON[0].get('route_color', 'FFFFFF'), 16)
     color = get_clamped_color(color_value)
-    graphics.DrawText(canvas, font, 0, 0, color, TRIP_JSON[0]["line"])
-    graphics.DrawText(canvas, font, 10, 0, color, TRIP_JSON[0]["direction"])
-    graphics.DrawText(canvas, font, 25, 0, color, str(TRIP_JSON[0]["minutes_until_arrival"]))
+    graphics.DrawText(canvas, font, 0, 10, color, TRIP_JSON[0]["line"])
+    graphics.DrawText(canvas, font, 10, 10, color, TRIP_JSON[0]["direction"])
+    graphics.DrawText(canvas, font, 25, 10, color, str(TRIP_JSON[0]["minutes_until_arrival"]))
 
     # Second Row
     color_value = int(TRIP_JSON[1].get('route_color', 'FFFFFF'), 16)
     color = get_clamped_color(color_value)
-    graphics.DrawText(canvas, font, 0, 10, color, TRIP_JSON[1]["line"])
-    graphics.DrawText(canvas, font, 10, 10, color, TRIP_JSON[1]["direction"])
+    graphics.DrawText(canvas, font, 0, 20, color, TRIP_JSON[1]["line"])
+    graphics.DrawText(canvas, font, 10, 20, color, TRIP_JSON[1]["direction"])
     graphics.DrawText(canvas, font, 25, 10, color, str(TRIP_JSON[1]["minutes_until_arrival"]))
 
     # Third Row
     color_value = int(TRIP_JSON[bottom_row_index].get('route_color', 'FFFFFF'), 16)
     color = get_clamped_color(color_value)
-    graphics.DrawText(canvas, font, 0, 20, color, TRIP_JSON[bottom_row_index]["line"])
-    graphics.DrawText(canvas, font, 10, 20, color, TRIP_JSON[bottom_row_index]["direction"])
-    graphics.DrawText(canvas, font, 25, 20, color, str(TRIP_JSON[bottom_row_index]["minutes_until_arrival"]))
+    graphics.DrawText(canvas, font, 0, 30, color, TRIP_JSON[bottom_row_index]["line"])
+    graphics.DrawText(canvas, font, 10, 30, color, TRIP_JSON[bottom_row_index]["direction"])
+    graphics.DrawText(canvas, font, 25, 30, color, str(TRIP_JSON[bottom_row_index]["minutes_until_arrival"]))
 
     elapsed_time = time.monotonic() - start_time
-    pixels_on = int(((REFRESH_TIME_DELAY - elapsed_time) / REFRESH_TIME_DELAY) * LED_ROWS)
-    countdown_text = "i" * pixels_on + " " * (LED_ROWS - pixels_on)
+    pixels_on = int(((REFRESH_TIME_DELAY - elapsed_time) / REFRESH_TIME_DELAY) * LED_COLUMNS)
     color = graphics.Color(255, 255, 255)
-    graphics.DrawText(canvas, font, 0, 30, color, countdown_text)
+    graphics.DrawLine(canvas, 0, 31, pixels_on, 31, color)
+
 
     matrix.SwapOnVSync(canvas)
-    time.sleep(0.5)
+    time.sleep(1)
