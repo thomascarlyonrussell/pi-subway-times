@@ -5,7 +5,7 @@ import os
 
 #get current file path
 app_dir = pathlib.Path(__file__).parent.parent
-rgb_dir = app_dir.parent.parent / 'rpi-rgb-led-matrix' / 'bindings' / 'python'
+rgb_dir = app_dir.parent.parent.parent / 'rpi-rgb-led-matrix' / 'bindings' / 'python'
 
 # Add rgbmatrix folder to system path
 os.sys.path.append(str(rgb_dir))
@@ -22,6 +22,7 @@ with open(app_dir / 'settings.toml', 'r') as file:
 # Load configuration from environment variables
 REFRESH_TIME_DELAY = int(config["REFRESH_TIME_DELAY"])
 ROTATE_TRIP_DELAY = int(config["ROTATE_TRIP_DELAY"])
+SCREEN_REFRESH_INTERVAL = int(config["SCREEN_REFRESH_INTERVAL"])
 MINIMUM_ARRIVAL_MINUTES = int(config["MINIMUM_ARRIVAL_MINUTES"])
 LED_ROWS = int(config["LED_ROWS"])
 LED_COLUMNS = int(config["LED_COLUMNS"])
@@ -101,4 +102,4 @@ while True:
 
 
     matrix.SwapOnVSync(canvas)
-    time.sleep(1)
+    time.sleep(SCREEN_REFRESH_INTERVAL)
