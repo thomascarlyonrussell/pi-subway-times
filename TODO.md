@@ -1,11 +1,15 @@
 # TODOs
 
 - [ ] Auto-start on os load
+  - [ ] ensure running with sudo to prevent flicker
 - [ ] How users change settings
 - [ ] How users setup local wifi
+- [ ] Setup logging
 - [ ] Get mta/data from internet dynamically
 - [ ] Change from mta font to image draw
 - [ ] custom mapping of trip directions
+- [ ] dynamic time reduction to allow for less api calls (when trips longer than 5 min)
+- [ ] have copilot review for any potential issues based on incoming data
 - [ ] MTA font 
   - [ ] 1
   - [ ] 2
