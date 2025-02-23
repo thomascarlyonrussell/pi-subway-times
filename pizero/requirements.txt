@@ -1,3 +1,0 @@
-requests
-toml
-gtfs-realtime-bindings

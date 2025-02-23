@@ -1,0 +1,38 @@
+# TODOs
+
+- [ ] Auto-start on os load
+- [ ] How users change settings
+- [ ] How users setup local wifi
+- [ ] Get mta/data from internet dynamically
+- [ ] Change from mta font to image draw
+- [ ] MTA font 
+  - [ ] 1
+  - [ ] 2
+  - [ ] 3
+  - [ ] 4
+  - [ ] 5
+  - [ ] 5X
+  - [ ] 6
+  - [ ] 6X
+  - [ ] 7
+  - [ ] 7X
+  - [ ] A
+  - [ ] B
+  - [ ] C
+  - [ ] D
+  - [ ] E
+  - [x] F
+  - [ ] FS
+  - [ ] FX
+  - [x] G
+  - [ ] GS
+  - [ ] H
+  - [ ] J
+  - [ ] L
+  - [ ] M
+  - [ ] N
+  - [ ] Q
+  - [ ] R
+  - [ ] SI
+  - [ ] W
+  - [ ] Z  
