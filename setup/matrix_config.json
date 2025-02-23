@@ -1,0 +1,26 @@
+{
+    "wifi": {
+        "ssid": "YOUR_WIFI_SSID",
+        "password": "YOUR_WIFI_PASSWORD"
+    },
+    "display": {
+        "brightness": 50,
+        "mta_directions": "N",
+        "refresh_time_delay": 30,
+        "rotate_trip_delay": 4,
+        "screen_refresh_interval": 2,
+        "minimum_arrival_minutes": 2,
+        "maximum_arrival_minutes": 99,
+        "led_rows": 32,
+        "led_columns": 64,
+        "led_chain_length": 1,
+        "led_parallel": 1,
+        "led_hardware_mapping": "adafruit-hat",
+        "line_direction_max_length": 10
+    },
+    "feed": {
+        "mta_routes": "F,G",
+        "mta_stop": "7 Av",
+        "mta_feed_base_url": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2F"
+    }
+}
