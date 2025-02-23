@@ -63,14 +63,14 @@ start_time = time.monotonic()
 rotate_time = start_time
 time.sleep(1)
 TRIP_JSON = trips.fetch_trip_data()
-bottom_row_index = 0
+bottom_row_index = 2
 
 while True:
     if (time.monotonic() - start_time) > REFRESH_TIME_DELAY:
         TRIP_JSON = trips.fetch_trip_data()
         start_time = time.monotonic()
     if (time.monotonic() - rotate_time) > ROTATE_TRIP_DELAY:
-        bottom_row_index =  bottom_row_index + 1 if bottom_row_index < len(TRIP_JSON) - 1 else 0
+        bottom_row_index =  bottom_row_index + 1 if bottom_row_index < len(TRIP_JSON) - 1 else 2
         rotate_time = time.monotonic()
 
     canvas.Clear()
