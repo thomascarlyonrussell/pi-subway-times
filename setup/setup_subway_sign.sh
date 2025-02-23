@@ -6,13 +6,13 @@ sudo apt update && sudo apt upgrade -y
 
 # Install required packages
 echo "Installing necessary packages..."
-sudo apt install -y python3 python3-pip python3-flask git hostapd dnsmasq \
-  python3-rpi.gpio python3-requests curl
+sudo apt install -y python3 python3-pip git hostapd dnsmasq curl \
+    python3-rpi.gpio python3-requests python3-toml python3-gtfs-realtime-bindings python3-flask 
 
 # Set up project directory
 PROJECT_DIR="/home/pi/subway_sign"
 echo "Setting up project directory at $PROJECT_DIR..."
-mkdir -p $PROJECT_DIR
+sudo mkdir -p $PROJECT_DIR
 
 # Clone or pull the latest code
 if [ ! -d "$PROJECT_DIR/.git" ]; then
@@ -22,10 +22,6 @@ else
     echo "Repository already exists. Pulling latest changes..."
     cd $PROJECT_DIR && git pull origin main
 fi
-
-# Install Python dependencies
-echo "Installing Python dependencies..."
-pip3 install -r $PROJECT_DIR/requirements.txt
 
 # Setup logging
 LOG_FILE="/var/log/subway_sign.log"
