@@ -24,8 +24,7 @@ fi
 
 # Install Python dependencies
 echo "Installing Python dependencies..."
-pip3 install -r $PROJECT_DIR/requirements.txt
-pip3 install gtfs-realtime-bindings
+pip3 install --break-system-packages -r $PROJECT_DIR/requirements.txt
 
 # Setup logging
 LOG_FILE="/var/log/subway_sign.log"
