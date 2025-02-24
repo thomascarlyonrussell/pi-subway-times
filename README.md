@@ -20,9 +20,10 @@
 5. Update the system by running the shell script
 
 ```bash
-wget https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/setup_subway_sign.sh
+wget https://raw.githubusercontent.com/tomrussell-willdan/pi-subway-times/refs/heads/main/setup/setup_subway_sign.sh
+mv setup_subway_sign.sh?token=XYZ123 setup_subway_sign.sh
 chmod +x setup_subway_sign.sh
-./setup_subway_sign.sh
+sudo ./setup_subway_sign.sh
 ```
 
 ### Update and Configure Bonnet
