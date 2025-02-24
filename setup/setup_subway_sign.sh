@@ -6,7 +6,7 @@ sudo apt update && sudo apt upgrade -y
 
 # Install required packages
 echo "Installing necessary packages..."
-sudo apt install -y python3 python3-pip git hostapd dnsmasq curl
+sudo apt install -y python3 python3-pip git hostapd dnsmasq curl certbot python3-certbot
 
 # Set up project directory
 PROJECT_DIR="/home/subwaysign"
@@ -82,7 +82,6 @@ interface=wlan0
 ssid=SubwaySign-Setup
 hw_mode=g
 channel=7
-auth_algs=1
 wpa=2
 wpa_passphrase=SetupYourSign
 EOF
@@ -91,6 +90,17 @@ EOF
 sudo systemctl unmask hostapd
 sudo systemctl enable hostapd
 sudo systemctl enable dnsmasq
+
+# self-signed certificate for web config
+mkdir -p /home/subwaysign/certs
+cd /home/subwaysign/certs
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+
+# Block unused ports
+sudo iptables -A INPUT -p tcp --dport 5000 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+sudo iptables -A INPUT -j DROP
+
 
 # Setup default configuration file
 echo "Setting up default configuration..."
@@ -131,9 +141,17 @@ fi
 # === UPDATE AND CONFIGURE RGB MATRIX BONNET ===
 echo "Installing and configuring Adafruit RGB Matrix Bonnet..."
 cd $PROJECT_DIR
-curl -O https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/main/rgb-matrix.sh
-sudo bash rgb-matrix.sh
+if [ ! -f "rgb-matrix.sh" ]; then
+    curl -O https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/main/rgb-matrix.sh
+    sudo bash rgb-matrix.sh
+fi
 
-# Reboot to apply changes
-echo "Setup complete. Rebooting now..."
-sudo reboot
+
+# Request user confirmation to reboot
+read -p "Setup complete. Do you want to reboot now? (y/n): " confirm
+if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
+    echo "Rebooting now..."
+    sudo reboot
+else
+    echo "Reboot canceled. Please reboot manually to apply changes."
+fi
