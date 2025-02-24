@@ -9,7 +9,7 @@ echo "Installing necessary packages..."
 sudo apt install -y python3 python3-pip git hostapd dnsmasq curl certbot python3-certbot
 
 # Set up project directory
-PROJECT_DIR="/home/subwaysign"
+PROJECT_DIR="/home/subwaysign/project"
 echo "Setting up project directory at $PROJECT_DIR..."
 sudo mkdir -p $PROJECT_DIR
 
@@ -91,10 +91,10 @@ sudo systemctl unmask hostapd
 sudo systemctl enable hostapd
 sudo systemctl enable dnsmasq
 
-# self-signed certificate for web config
-mkdir -p /home/subwaysign/certs
-cd /home/subwaysign/certs
-openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+# # self-signed certificate for web config
+# mkdir -p /home/subwaysign/certs
+# cd /home/subwaysign/certs
+# openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
 
 # Block unused ports
 sudo iptables -A INPUT -p tcp --dport 5000 -j ACCEPT
