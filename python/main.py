@@ -11,7 +11,7 @@ logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG,
 
 #get current file path
 app_dir = pathlib.Path(__file__).parent.parent
-rgb_dir = app_dir.parent.parent.parent / 'rpi-rgb-led-matrix' / 'bindings' / 'python'
+rgb_dir = app_dir / 'rpi-rgb-led-matrix' / 'bindings' / 'python'
 
 # Add rgbmatrix folder to system path
 os.sys.path.append(str(rgb_dir))

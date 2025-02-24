@@ -9,7 +9,7 @@ echo "Installing necessary packages..."
 sudo apt install -y python3 python3-pip git hostapd dnsmasq curl
 
 # Set up project directory
-PROJECT_DIR="/home/pi/subway_sign"
+PROJECT_DIR="/home/subwaysign"
 echo "Setting up project directory at $PROJECT_DIR..."
 sudo mkdir -p $PROJECT_DIR
 
@@ -45,7 +45,7 @@ After=network.target
 ExecStart=/usr/bin/python3 $PROJECT_DIR/python/main.py
 WorkingDirectory=$PROJECT_DIR
 Restart=always
-User=pi
+User=subwaysign
 
 [Install]
 WantedBy=multi-user.target
@@ -66,7 +66,7 @@ After=network.target
 ExecStart=/usr/bin/python3 $PROJECT_DIR/python/web_config.py
 WorkingDirectory=$PROJECT_DIR
 Restart=always
-User=pi
+User=subwaysign
 
 [Install]
 WantedBy=multi-user.target
