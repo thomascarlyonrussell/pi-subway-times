@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify
+# from flask_httpauth import HTTPBasicAuth
 import json, os
 import pathlib
 import subprocess
@@ -7,6 +8,8 @@ import logging
 from datetime import datetime
 import os
 import subprocess
+
+
 
 LOG_FILE = "/var/log/subway_sign.log"
 logging.basicConfig(
@@ -28,6 +31,16 @@ TEMPLATE_FILE = template_path.absolute()
 
 app = Flask(__name__,template_folder=TEMPLATE_FILE)
 
+## Authorization
+# auth = HTTPBasicAuth()
+
+# USERS = {"admin": "SecurePassword123"}
+
+# @auth.verify_password
+# def verify(username, password):
+#     return USERS.get(username) == password
+
+
 def load_config():
     if os.path.exists(str(CONFIG_FILE)):
         with open(CONFIG_FILE, "r") as f:
@@ -39,6 +52,7 @@ def save_config(config):
         json.dump(config, f, indent=4)
 
 @app.route("/", methods=["GET", "POST"])
+# @auth.login_required
 def index():
     config = load_config()
     
@@ -73,6 +87,9 @@ def index():
             subprocess.Popen(["sudo", "wpa_cli", "-i", "wlan0", "reconfigure"])
             log_event("info", "Restarting subway sign service...")
             subprocess.Popen(["sudo", "systemctl", "restart", "subway-sign"])
+            log_event("info", "Turning off access point...")
+            subprocess.run(["sudo", "systemctl", "stop", "hostapd"])
+            subprocess.run(["sudo", "systemctl", "stop", "dnsmasq"])
 
         return jsonify({"message": "Settings updated! Restarting..."})
 
@@ -99,3 +116,5 @@ def reset_to_defaults():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+    # app.run(host="0.0.0.0", port=5000, ssl_context=("cert.pem", "key.pem"))  # https
+    # app.run(host="127.0.0.1", port=5000) #local connections only
