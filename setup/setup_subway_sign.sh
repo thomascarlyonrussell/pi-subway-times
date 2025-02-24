@@ -6,8 +6,7 @@ sudo apt update && sudo apt upgrade -y
 
 # Install required packages
 echo "Installing necessary packages..."
-sudo apt install -y python3 python3-pip git hostapd dnsmasq curl \
-    python3-rpi.gpio python3-requests python3-toml python3-gtfs-realtime-bindings python3-flask 
+sudo apt install -y python3 python3-pip git hostapd dnsmasq curl
 
 # Set up project directory
 PROJECT_DIR="/home/pi/subway_sign"
@@ -22,6 +21,11 @@ else
     echo "Repository already exists. Pulling latest changes..."
     cd $PROJECT_DIR && git pull origin main
 fi
+
+# Install Python dependencies
+echo "Installing Python dependencies..."
+pip3 install -r $PROJECT_DIR/requirements.txt
+pip3 install gtfs-realtime-bindings
 
 # Setup logging
 LOG_FILE="/var/log/subway_sign.log"
@@ -39,7 +43,7 @@ Description=Subway Time Sign Display
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 $PROJECT_DIR/subway_sign.py
+ExecStart=/usr/bin/python3 $PROJECT_DIR/python/main.py
 WorkingDirectory=$PROJECT_DIR
 Restart=always
 User=pi
@@ -52,26 +56,6 @@ EOF
 sudo systemctl enable subway-sign
 sudo systemctl start subway-sign
 
-# Configure systemd service for reset button
-echo "Setting up reset button service..."
-cat <<EOF | sudo tee /etc/systemd/system/reset-button.service
-[Unit]
-Description=Physical Reset Button
-After=multi-user.target
-
-[Service]
-ExecStart=/usr/bin/python3 $PROJECT_DIR/reset_button.py
-WorkingDirectory=$PROJECT_DIR
-Restart=always
-User=pi
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl enable reset-button
-sudo systemctl start reset-button
-
 # Configure systemd service for web configuration UI
 echo "Setting up web configuration service..."
 cat <<EOF | sudo tee /etc/systemd/system/web-config.service
@@ -80,7 +64,7 @@ Description=Web Config for Subway Sign
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 $PROJECT_DIR/web_config.py
+ExecStart=/usr/bin/python3 $PROJECT_DIR/python/web_config.py
 WorkingDirectory=$PROJECT_DIR
 Restart=always
 User=pi
@@ -104,6 +88,8 @@ wpa=2
 wpa_passphrase=SetupYourSign
 EOF
 
+# Unmask and enable hostapd service
+sudo systemctl unmask hostapd
 sudo systemctl enable hostapd
 sudo systemctl enable dnsmasq
 
