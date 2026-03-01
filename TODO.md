@@ -1,48 +1,47 @@
-# TODOs
+# Execution Plan (OpenSpec-Driven)
 
-- [x] Auto-start on os load
-  - [ ] ensure running with sudo to prevent flicker, permissions issue running as root when in subwaysign user
-- [ ] How users change settings
-  - [x] setup web page to change settings
-  - [ ] folow through on ensuring settings can change
-  - [ ] convert settings from toml to json
-  - [ ] Allow users to see stops and lines
-- [ ] How users setup local wifi
-  - [ ] protect with security
-  - [ ] follow trhough on AP access to change wifi
-- [x] Setup logging
-- [ ] Get mta static data from internet dynamically
-- [ ] custom mapping of trip directions
-- [ ] dynamic time reduction to allow for less api calls (when trips longer than 5 min)
-- [ ] Change from mta font to image draw
-- [ ] MTA font 
-  - [ ] 1
-  - [ ] 2
-  - [ ] 3
-  - [ ] 4
-  - [ ] 5
-  - [ ] 5X
-  - [ ] 6
-  - [ ] 6X
-  - [ ] 7
-  - [ ] 7X
-  - [ ] A
-  - [ ] B
-  - [ ] C
-  - [ ] D
-  - [ ] E
-  - [x] F
-  - [ ] FS
-  - [ ] FX
-  - [x] G
-  - [ ] GS
-  - [ ] H
-  - [ ] J
-  - [ ] L
-  - [ ] M
-  - [ ] N
-  - [ ] Q
-  - [ ] R
-  - [ ] SI
-  - [ ] W
-  - [ ] Z  
+## Phase 0 - Baseline Confidence
+- [ ] `audit-existing-completed-todos`
+  - Validate already-completed work (autostart, logging, current font coverage) before new implementation.
+
+## Phase 1 - Foundation (Must Go First)
+- [ ] `unify-config-sources-and-settings-flow`
+  - Establish one canonical config path/format.
+  - This unblocks clean implementation of all UI/data/runtime changes.
+
+## Phase 2 - Setup and Security
+- [ ] `secure-wifi-onboarding-and-ap-flow`
+  - Add auth and harden AP/WiFi onboarding flow.
+- [ ] `add-stop-and-line-discovery-in-config-ui`
+  - Add route/stop discovery and validation in web config UI.
+  - Execute after config unification so UI writes canonical config.
+
+## Phase 3 - Data Reliability and Feed Coverage
+- [ ] `automate-gtfs-static-data-refresh`
+  - Add scheduled static GTFS refresh with rollback/transition safeguards.
+- [ ] `improve-trip-direction-mapping-and-fetch-cadence`
+  - Expand realtime feed group coverage for additional lines.
+  - Add adaptive polling and direction mapping improvements.
+
+## Phase 4 - Rendering and Symbol Support
+- [ ] `modernize-route-rendering-and-glyph-strategy`
+  - Introduce rendering abstraction/fallback behavior.
+- [ ] `expand-mta-font-pack-coverage`
+  - Fill full route symbol coverage in phased batches.
+  - Keep this separate but aligned with rendering abstraction decisions.
+
+## Implementation Order Summary
+1. `audit-existing-completed-todos`
+2. `unify-config-sources-and-settings-flow`
+3. `secure-wifi-onboarding-and-ap-flow`
+4. `add-stop-and-line-discovery-in-config-ui`
+5. `automate-gtfs-static-data-refresh`
+6. `improve-trip-direction-mapping-and-fetch-cadence`
+7. `modernize-route-rendering-and-glyph-strategy`
+8. `expand-mta-font-pack-coverage`
+
+## Execution Rule
+- For each item above:
+  - Run implementation via `/opsx:apply <change-name>`
+  - Validate on dev box and Raspberry Pi hardware
+  - Mark complete in this file only after tests/validation pass
