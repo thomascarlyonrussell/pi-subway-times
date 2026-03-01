@@ -3,14 +3,15 @@ from google.transit import gtfs_realtime_pb2
 from datetime import datetime
 import csv
 import pathlib
-import toml
 import time
+from config import load_runtime_config
+
+
 class Trips:
-    def __init__(self, station, directions, routes):
+    def __init__(self, station, directions, routes, config=None):
         self.cwd = pathlib.Path(__file__).parent.parent
-        with open(self.cwd / 'settings.toml', 'r') as file:
-            config = toml.load(file)
-        self.MTA_FEED_BASE_URL = config["MTA_FEED_BASE_URL"]
+        self.config = config or load_runtime_config()
+        self.MTA_FEED_BASE_URL = self.config["feed"]["mta_feed_base_url"]
         self.MTA_FEEDS = {
             'gtfs-bdfm':['B','D','F','FS','FX','M'], 
             'gtfs-g':['G','GS'],
@@ -24,7 +25,6 @@ class Trips:
         self.station = station
         self.directions = directions
         self.routes = routes
-        self.config = config
 
     def get_stops(self):
         stops = []
@@ -108,8 +108,8 @@ class Trips:
                 trips = self.get_subway_times(
                             self.get_stops(), self.get_trip_directions(), self.get_route_colors(),
                             max_list=5, 
-                            min_arrival=int(self.config["MINIMUM_ARRIVAL_MINUTES"]),
-                            max_arrival=int(self.config["MAXIMUM_ARRIVAL_MINUTES"])
+                            min_arrival=int(self.config["display"]["minimum_arrival_minutes"]),
+                            max_arrival=int(self.config["display"]["maximum_arrival_minutes"])
                             )
                 if not trips:
                     raise ValueError("No trips found")
@@ -117,6 +117,6 @@ class Trips:
             except Exception as e:
                 print(f"Error fetching trip data (attempt {attempt + 1}): {e}")
                 attempt += 1
-                time.sleep(int(self.config["REFRESH_TIME_DELAY"]))  # Wait before retrying
+                time.sleep(int(self.config["display"]["refresh_time_delay"]))  # Wait before retrying
 
         return None

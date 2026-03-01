@@ -3,7 +3,7 @@ import json
 import os
 from cryptography.fernet import Fernet
 
-CONFIG_FILE = "/home/subwaysign/config.json"
+CONFIG_FILE = os.environ.get("MATRIX_CONFIG_PATH", "/etc/matrix_config.json")
 KEY_FILE = "/home/subwaysign/encryption.key"
 
 # Load or create an encryption key
@@ -36,7 +36,13 @@ def load_config():
 def apply_wifi_settings():
     config = load_config()
     ssid = config["wifi"].get("ssid")
-    password = decrypt_password(config["wifi"].get("password"))
+    stored_password = config["wifi"].get("password", "")
+    password = ""
+    if stored_password:
+        try:
+            password = decrypt_password(stored_password)
+        except Exception:
+            password = stored_password
 
     if ssid and password:
         with open("/etc/wpa_supplicant/wpa_supplicant.conf", "w") as f:

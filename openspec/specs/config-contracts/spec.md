@@ -1,38 +1,19 @@
-## Purpose
-Define the current configuration contracts and source-of-truth boundaries between TOML runtime settings and JSON web and setup settings.
+## MODIFIED Requirements
 
-## Requirements
 ### Requirement: Display Runtime Reads TOML at Startup
-The display runtime SHALL load configuration keys from `settings.toml` during process startup.
+The display runtime MUST load configuration from a canonical JSON source and SHALL support a temporary compatibility read path for legacy TOML during migration.
 
-#### Scenario: Startup config load
-- **WHEN** `python/main.py` initializes
-- **THEN** it reads timing, LED, route, stop, direction, and feed URL keys from `settings.toml`
+#### Scenario: Canonical config read on startup
+- **WHEN** `python/main.py` initializes after migration
+- **THEN** it reads required timing, LED, route, stop, direction, and feed settings from canonical JSON
 
-### Requirement: Trip Pipeline Reads TOML for Feed and Arrival Bounds
-The trip data pipeline SHALL load `settings.toml` for `MTA_FEED_BASE_URL` and fetch bounds used in retry and filter logic.
-
-#### Scenario: Trip config dependency
-- **WHEN** `Trips` is instantiated and `fetch_trip_data()` runs
-- **THEN** trip fetch behavior depends on values from `settings.toml`
-
-### Requirement: Web Control Plane Reads and Writes JSON Config
-The web control plane SHALL persist all user-updated values in `setup/matrix_config.json`.
-
-#### Scenario: Web config persistence
-- **WHEN** settings are submitted via UI
-- **THEN** fields are written to JSON keys under `wifi`, `display`, and `feed`
+#### Scenario: Legacy TOML compatibility window
+- **WHEN** legacy TOML exists and canonical JSON is absent during migration window
+- **THEN** runtime loads compatibility values and logs migration-required warning
 
 ### Requirement: No Automatic TOML-JSON Synchronization Exists
-Current baseline behavior SHALL treat TOML and JSON config files as independent data stores.
+The system MUST provide explicit migration and synchronization behavior so configuration state is no longer split across independent TOML and JSON files.
 
-#### Scenario: JSON update does not update display runtime config source
-- **WHEN** web UI updates only `setup/matrix_config.json`
-- **THEN** display runtime remains bound to `settings.toml` unless separate manual or scripted synchronization occurs
-
-### Requirement: Provisioning Seeds Separate Config Location in /etc
-Provisioning SHALL create `/etc/matrix_config_default.json` and `/etc/matrix_config.json` as a separate runtime config location.
-
-#### Scenario: Setup-created config path divergence
-- **WHEN** setup script and web control plane paths are compared
-- **THEN** baseline records path divergence between `/etc/matrix_config*.json` and `setup/matrix_config*.json`
+#### Scenario: Web update uses canonical source
+- **WHEN** web UI saves settings
+- **THEN** canonical config is updated and runtime apply logic targets canonical values only

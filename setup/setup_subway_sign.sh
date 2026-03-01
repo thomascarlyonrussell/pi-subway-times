@@ -16,7 +16,7 @@ sudo mkdir -p $PROJECT_DIR
 # Clone or pull the latest code
 if [ ! -d "$PROJECT_DIR/.git" ]; then
     echo "Cloning project repository..."
-    git clone https://github.com/tomrussell-willdan/pi-subway-times.git $PROJECT_DIR
+    git clone https://github.com/thomascarlyonrussell/pi-subway-times.git $PROJECT_DIR
 else
     echo "Repository already exists. Pulling latest changes..."
     cd $PROJECT_DIR && git pull origin main
@@ -138,6 +138,8 @@ EOF
 if [ ! -f "/etc/matrix_config.json" ]; then
     sudo cp /etc/matrix_config_default.json /etc/matrix_config.json
 fi
+sudo chown subwaysign:subwaysign /etc/matrix_config_default.json /etc/matrix_config.json
+sudo chmod 664 /etc/matrix_config_default.json /etc/matrix_config.json
 
 # === UPDATE AND CONFIGURE RGB MATRIX BONNET ===
 echo "Installing and configuring Adafruit RGB Matrix Bonnet..."

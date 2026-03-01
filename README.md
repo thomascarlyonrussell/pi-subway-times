@@ -69,9 +69,12 @@ sudo reboot
 
 ### Setup Web SErvice Startup 
 
-#### Store Settings
+#### Store Settings (Canonical Source)
 
-`/etc/matrix_config.json`
+`/etc/matrix_config.json` is the single source of truth.
+`/etc/matrix_config_default.json` is the rollback/default template.
+
+Legacy `settings.toml` is compatibility-only during migration and is no longer the preferred runtime source.
 
 #### Store Wifi Hotspot Settings
 
@@ -87,7 +90,7 @@ sudo reboot
 - On boot, check if the device is connected to WiFi.
 - If WiFi is not connected, enable AP mode and start the Flask web server.
 - Users connect to the SubwaySign-Setup network and access the web UI at http://192.168.4.1:5000.
-- After entering their details, the app saves them and restarts the Pi.
+- After entering their details, the app atomically saves canonical JSON, restarts `subway-sign`, reconfigures Wi-Fi, and tears down AP services.
 
 
 ### Rotate Logs
@@ -110,4 +113,18 @@ sudo nano /etc/logrotate.d/subway-sign
         systemctl restart subway-sign
     endscript
 }
+```
+
+### Validate Unified Config Flow
+
+Run local config-flow checks:
+
+```bash
+python3 python/validate_config_flow.py
+```
+
+Run full checks on Raspberry Pi (includes service status checks):
+
+```bash
+python3 python/validate_config_flow.py --with-services
 ```

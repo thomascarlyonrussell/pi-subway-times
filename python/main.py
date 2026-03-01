@@ -1,4 +1,3 @@
-import toml
 import pathlib
 import time
 import os
@@ -18,32 +17,31 @@ os.sys.path.append(str(rgb_dir))
 
 from rgbmatrix import RGBMatrix, RGBMatrixOptions, graphics
 from display import get_clamped_color
+from config import load_runtime_config
 from trips import Trips
 
+# Load configuration from canonical source.
+config = load_runtime_config()
+display_config = config["display"]
+feed_config = config["feed"]
 
-# Load the TOML file
-with open(app_dir / 'settings.toml', 'r') as file:
-    config = toml.load(file)
+REFRESH_TIME_DELAY = display_config["refresh_time_delay"]
+ROTATE_TRIP_DELAY = display_config["rotate_trip_delay"]
+SCREEN_REFRESH_INTERVAL = display_config["screen_refresh_interval"]
+MINIMUM_ARRIVAL_MINUTES = display_config["minimum_arrival_minutes"]
+LED_ROWS = display_config["led_rows"]
+LED_COLUMNS = display_config["led_columns"]
+LED_CHAIN_LENGTH = display_config["led_chain_length"]
+LED_PARALLEL = display_config["led_parallel"]
+LED_HARDWARE_MAPPING = display_config["led_hardware_mapping"]
+LINE_DIRECTION_MAX_LENGTH = display_config["line_direction_max_length"]
 
-# Load configuration from environment variables
-REFRESH_TIME_DELAY = int(config["REFRESH_TIME_DELAY"])
-ROTATE_TRIP_DELAY = int(config["ROTATE_TRIP_DELAY"])
-SCREEN_REFRESH_INTERVAL = int(config["SCREEN_REFRESH_INTERVAL"])
-MINIMUM_ARRIVAL_MINUTES = int(config["MINIMUM_ARRIVAL_MINUTES"])
-LED_ROWS = int(config["LED_ROWS"])
-LED_COLUMNS = int(config["LED_COLUMNS"])
-LED_CHAIN_LENGTH = int(config["LED_CHAIN_LENGTH"])
-LED_PARALLEL = int(config["LED_PARALLEL"])
-LED_HARDWARE_MAPPING = config["LED_HARDWARE_MAPPING"]
-LINE_DIRECTION_MAX_LENGTH = int(config["LINE_DIRECTION_MAX_LENGTH"])
-
-MTA_ROUTES = list(config["MTA_ROUTES"].split(','))
-MTA_STOP = config["MTA_STOP"]
-MTA_DIRECTIONS = list(config["MTA_DIRECTIONS"].split(','))
-MTA_FEED_BASE_URL = config['MTA_FEED_BASE_URL']
+MTA_ROUTES = [route.strip() for route in feed_config["mta_routes"].split(",") if route.strip()]
+MTA_STOP = feed_config["mta_stop"]
+MTA_DIRECTIONS = [direction.strip() for direction in display_config["mta_directions"].split(",") if direction.strip()]
 
 # Load data once at startup
-trips = Trips(MTA_STOP, MTA_DIRECTIONS, MTA_ROUTES)
+trips = Trips(MTA_STOP, MTA_DIRECTIONS, MTA_ROUTES, config=config)
 
 # Initialize the RGBMatrix
 options = RGBMatrixOptions()

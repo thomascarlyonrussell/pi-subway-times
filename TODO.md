@@ -1,13 +1,14 @@
 # Execution Plan (OpenSpec-Driven)
 
 ## Phase 0 - Baseline Confidence
-- [ ] `audit-existing-completed-todos`
+- [x] `audit-existing-completed-todos`
   - Validate already-completed work (autostart, logging, current font coverage) before new implementation.
 
 ## Phase 1 - Foundation (Must Go First)
 - [ ] `unify-config-sources-and-settings-flow`
-  - Establish one canonical config path/format.
-  - This unblocks clean implementation of all UI/data/runtime changes.
+  - [x] Establish one canonical config path/format.
+  - [x] This unblocks clean implementation of all UI/data/runtime changes.
+  - [ ] Remaining validation task: run `python3 python/validate_config_flow.py --with-services` on Raspberry Pi hardware.
 
 ## Phase 2 - Setup and Security
 - [ ] `secure-wifi-onboarding-and-ap-flow`
