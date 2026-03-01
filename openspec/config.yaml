@@ -1,0 +1,47 @@
+schema: spec-driven
+
+# Project context
+context: |
+  Project: pi-subway-times – Real-time MTA subway arrival display for Raspberry Pi Zero 2 W
+  
+  Tech stack:
+    - Language: Python 3.9
+    - Framework: Flask (web config UI)
+    - Hardware: Adafruit RGB Matrix Bonnet, 64×32 LED matrix
+    - Data: GTFS static + MTA GTFS-Realtime protobuf feeds
+    - Systemd services: subway-sign (display) & web-config (web UI)
+  
+  Key conventions:
+    - Display service must run as root (LED driver requirement)
+    - Dual config sources: settings.toml (canonical) + /etc/matrix_config.json (web UI)
+    - GTFS static files checked in at data/*.txt, should be refreshed periodically
+    - No automated tests; manual verification expected
+    - Log output to /var/log/subway_sign.log (perms: 666)
+    - Service user: subwaysign (except display which runs as root)
+  
+  Architecture:
+    - main.py: main display loop, 30-sec data fetch + 2 Hz screen refresh
+    - trips.py: core business logic (GTFS parsing + real-time feed)
+    - display.py: color helpers & font map
+    - web_config.py: Flask UI for config + systemd service control
+    - wifi_manager.py: WiFi credential management & AP mode
+  
+  Known pitfalls:
+    - Root privilege required for LED access; non-root execution fails
+    - Dual config problem: TOML vs JSON sync issues
+    - Static GTFS data may become stale; needs dynamic fetch strategy
+    - Incomplete font support (only F/G lines implemented)
+    - No error recovery if MTA API is down
+    - Settings path mismatch between setup script and code
+
+# Per-artifact rules
+rules:
+  proposal:
+    - Keep proposals under 800 words
+    - Always include "Implementation notes" section covering systemd/permissions
+    - Flag any changes requiring root privilege or service restart
+  tasks:
+    - Break tasks into max 2-hour chunks
+    - Group related file changes (e.g., TOML + JSON config updates) in same task
+    - Call out systemd service restart requirements
+    - Remind about testing on dev box vs actual Pi hardware
