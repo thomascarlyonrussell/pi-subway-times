@@ -1,6 +1,5 @@
 ## Purpose
 Define the current runtime behavior of the LED display loop, render cadence, row layout, and fatal error handling in `python/main.py` and `python/display.py`.
-
 ## Requirements
 ### Requirement: Display Loop Polls and Renders on Fixed Intervals
 The display runtime SHALL poll trip data every `REFRESH_TIME_DELAY` seconds and refresh the LED matrix every `SCREEN_REFRESH_INTERVAL` seconds.
@@ -21,15 +20,15 @@ The display runtime SHALL render three rows where row 1 uses trip index `0`, row
 - **THEN** `bottom_row_index` advances by 1 or wraps to `2`
 
 ### Requirement: Display Uses Route Color and Direction Truncation
-The display runtime SHALL derive row text color from `route_color` and truncate direction text to `LINE_DIRECTION_MAX_LENGTH`.
+The display runtime MUST render route symbols through a route-symbol rendering strategy that supports multiple backend types and deterministic fallback behavior.
 
-#### Scenario: Route color conversion
-- **WHEN** a trip contains `route_color` as hex text
-- **THEN** the runtime converts it to RGB components and renders route, direction, and minutes with that color
+#### Scenario: Primary symbol backend available
+- **WHEN** selected backend has symbol asset for route
+- **THEN** the display draws route symbol using selected backend and existing color rules
 
-#### Scenario: Missing route color fallback
-- **WHEN** a trip does not contain `route_color`
-- **THEN** the runtime uses `FFFFFF` as the fallback color
+#### Scenario: Primary symbol backend missing asset
+- **WHEN** selected backend lacks requested symbol
+- **THEN** fallback backend or textual route rendering is used without crashing render loop
 
 ### Requirement: Progress Bar Reflects Time to Next Data Poll
 The display runtime SHALL draw a bottom-row horizontal progress bar representing remaining time until next trip data fetch.
@@ -46,8 +45,9 @@ The display runtime SHALL import and use `rgbmatrix` from the local `rpi-rgb-led
 - **THEN** the process appends `<repo-parent>/rpi-rgb-led-matrix/bindings/python` to `sys.path` before importing `rgbmatrix`
 
 ### Requirement: Runtime Error Handling Is Fatal
-The display runtime SHALL log uncaught loop exceptions to `/var/log/subway_sign.log` and re-raise the exception.
+The display runtime MUST isolate symbol-rendering backend errors and continue rendering with fallback when feasible.
 
-#### Scenario: Fatal render/runtime exception
-- **WHEN** an exception escapes the main loop
-- **THEN** the runtime logs `Display Error: <exception>` and exits by re-raising
+#### Scenario: Backend-specific render error
+- **WHEN** backend render call fails for a symbol
+- **THEN** runtime logs error context and uses configured fallback path for that frame
+

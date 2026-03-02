@@ -49,6 +49,11 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
         "led_parallel": 1,
         "led_hardware_mapping": "adafruit-hat",
         "line_direction_max_length": 10,
+        "route_symbol_backends": "image,font,text",
+        "route_symbol_assets_dir": "assets/route_symbols",
+        "route_symbol_max_asset_px": 10,
+        "route_symbol_cache_limit": 128,
+        "route_symbol_text_max_chars": 2,
     },
     "feed": {
         "mta_routes": "F,G",
@@ -150,6 +155,9 @@ def _normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:
         "led_chain_length",
         "led_parallel",
         "line_direction_max_length",
+        "route_symbol_max_asset_px",
+        "route_symbol_cache_limit",
+        "route_symbol_text_max_chars",
     )
     for field in int_fields:
         display[field] = int(display[field])
@@ -161,6 +169,8 @@ def _normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:
 
     display["mta_directions"] = str(display.get("mta_directions", "")).upper()
     display["led_hardware_mapping"] = str(display.get("led_hardware_mapping", "")).strip()
+    display["route_symbol_assets_dir"] = str(display.get("route_symbol_assets_dir", "")).strip() or "assets/route_symbols"
+    display["route_symbol_backends"] = ",".join(_parse_route_symbol_backends(display.get("route_symbol_backends")))
 
     feed["mta_routes"] = str(feed.get("mta_routes", "")).upper()
     feed["mta_stop"] = str(feed.get("mta_stop", "")).strip()
@@ -218,6 +228,21 @@ def _normalize_direction_mapping_rules(value: Any) -> List[Dict[str, Any]]:
     return normalized_rules
 
 
+def _parse_route_symbol_backends(value: Any) -> List[str]:
+    if isinstance(value, str):
+        tokens = [token.strip().lower() for token in value.split(",") if token.strip()]
+    elif isinstance(value, (list, tuple)):
+        tokens = [str(token).strip().lower() for token in value if str(token).strip()]
+    else:
+        tokens = []
+
+    deduplicated: List[str] = []
+    for token in tokens:
+        if token not in deduplicated:
+            deduplicated.append(token)
+    return deduplicated or ["image", "font", "text"]
+
+
 def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
     normalized = _normalize_config(config)
 
@@ -252,6 +277,21 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("display.led_rows and display.led_columns must be > 0")
     if display["line_direction_max_length"] <= 0:
         raise ValueError("display.line_direction_max_length must be > 0")
+    if display["route_symbol_max_asset_px"] <= 0:
+        raise ValueError("display.route_symbol_max_asset_px must be > 0")
+    if display["route_symbol_cache_limit"] <= 0:
+        raise ValueError("display.route_symbol_cache_limit must be > 0")
+    if display["route_symbol_text_max_chars"] <= 0:
+        raise ValueError("display.route_symbol_text_max_chars must be > 0")
+    backends = _parse_route_symbol_backends(display.get("route_symbol_backends"))
+    supported_backends = {"image", "font", "text"}
+    if not backends:
+        raise ValueError("display.route_symbol_backends must define at least one backend")
+    unsupported = [backend for backend in backends if backend not in supported_backends]
+    if unsupported:
+        raise ValueError(
+            "display.route_symbol_backends contains unsupported backend(s): " + ",".join(unsupported)
+        )
     selector_to_label: Dict[tuple, str] = {}
     for rule in display["direction_mapping_rules"]:
         if not rule["label"]:

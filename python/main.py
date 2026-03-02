@@ -17,6 +17,7 @@ os.sys.path.append(str(rgb_dir))
 from rgbmatrix import RGBMatrix, RGBMatrixOptions, graphics
 from display import get_clamped_color
 from config import load_runtime_config
+from route_symbols import build_route_symbol_renderer
 from trips import Trips
 
 # Load configuration from canonical source.
@@ -62,6 +63,13 @@ def _normalize_for_render(trip_data):
         rows.append(dict(rows[-1]))
     return rows
 
+
+def _parse_color_value(raw_color):
+    try:
+        return int(str(raw_color or "FFFFFF"), 16)
+    except ValueError:
+        return int("FFFFFF", 16)
+
 # Initialize the RGBMatrix
 options = RGBMatrixOptions()
 options.rows = LED_ROWS
@@ -80,6 +88,7 @@ font.LoadFont(str(app_dir / 'fonts' / "10-Adobe-Helvetica.bdf"))
 ## Set route font
 route_font = graphics.Font()
 route_font.LoadFont(str(app_dir / 'fonts' / "mta.bdf"))
+route_symbol_renderer = build_route_symbol_renderer(display_config, route_font, font, logging.getLogger(__name__))
 
 # Main Loop
 start_time = time.monotonic()
@@ -110,23 +119,23 @@ try:
 
         canvas.Clear()
         # First Row
-        color_value = int(render_rows[0].get('route_color', 'FFFFFF'), 16)
+        color_value = _parse_color_value(render_rows[0].get("route_color"))
         color = get_clamped_color(color_value)
-        graphics.DrawText(canvas, route_font, 0, 10, color, render_rows[0]["line"])
+        route_symbol_renderer.render(canvas, render_rows[0].get("line", ""), 0, 10, color_value)
         graphics.DrawText(canvas, font, 11, 9, color, render_rows[0]["direction"][:LINE_DIRECTION_MAX_LENGTH])
         graphics.DrawText(canvas, font, 55, 9, color, str(render_rows[0]["minutes_until_arrival"]))
 
         # Second Row
-        color_value = int(render_rows[1].get('route_color', 'FFFFFF'), 16)
+        color_value = _parse_color_value(render_rows[1].get("route_color"))
         color = get_clamped_color(color_value)
-        graphics.DrawText(canvas, route_font, 0, 20, color, render_rows[1]["line"])
+        route_symbol_renderer.render(canvas, render_rows[1].get("line", ""), 0, 20, color_value)
         graphics.DrawText(canvas, font, 11, 19, color, render_rows[1]["direction"][:LINE_DIRECTION_MAX_LENGTH])
         graphics.DrawText(canvas, font, 55, 19, color, str(render_rows[1]["minutes_until_arrival"]))
 
         # Third Row
-        color_value = int(render_rows[bottom_row_index].get('route_color', 'FFFFFF'), 16)
+        color_value = _parse_color_value(render_rows[bottom_row_index].get("route_color"))
         color = get_clamped_color(color_value)
-        graphics.DrawText(canvas, route_font, 0, 30, color, render_rows[bottom_row_index]["line"])
+        route_symbol_renderer.render(canvas, render_rows[bottom_row_index].get("line", ""), 0, 30, color_value)
         graphics.DrawText(canvas, font, 11, 29, color, render_rows[bottom_row_index]["direction"][:LINE_DIRECTION_MAX_LENGTH])
         graphics.DrawText(canvas, font, 55, 29, color, str(render_rows[bottom_row_index]["minutes_until_arrival"]))
 

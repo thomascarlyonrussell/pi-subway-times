@@ -29,7 +29,9 @@
 
 ## Phase 4 - Rendering and Symbol Support
 - [ ] `modernize-route-rendering-and-glyph-strategy`
-  - Introduce rendering abstraction/fallback behavior.
+  - [x] Introduce rendering abstraction/fallback behavior.
+  - [ ] Carryover validation task (OpenSpec 3.1): validate frame-rate budget and memory profile in dev environment.
+  - [ ] Carryover validation task (OpenSpec 3.2): validate visual output and timing stability on Raspberry Pi hardware.
 - [ ] `expand-mta-font-pack-coverage`
   - Fill full route symbol coverage in phased batches.
   - Keep this separate but aligned with rendering abstraction decisions.
