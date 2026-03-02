@@ -47,6 +47,24 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
         "mta_stop": "7 Av",
         "mta_feed_base_url": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2F",
     },
+    "gtfs_static_refresh": {
+        "enabled": True,
+        "request_timeout_sec": 30,
+        "transition_window_hours": 168,
+        "snapshot_retention_count": 8,
+        "service_action": "restart",
+        "alert_command": "",
+        "sources": [
+            [
+                "base",
+                "https://web.mta.info/developers/data/nyct/subway/google_transit.zip",
+            ],
+            [
+                "supplemented",
+                "https://web.mta.info/developers/data/nyct/subway/google_transit_supplemented.zip",
+            ],
+        ],
+    },
 }
 
 
@@ -104,6 +122,7 @@ def _normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:
     display = normalized["display"]
     feed = normalized["feed"]
     wifi = normalized["wifi"]
+    refresh = normalized["gtfs_static_refresh"]
 
     int_fields = (
         "brightness",
@@ -131,6 +150,23 @@ def _normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:
     feed["mta_stop"] = str(feed.get("mta_stop", "")).strip()
     feed["mta_feed_base_url"] = str(feed.get("mta_feed_base_url", "")).strip()
 
+    refresh["enabled"] = bool(refresh.get("enabled", True))
+    refresh["request_timeout_sec"] = int(refresh.get("request_timeout_sec", 30))
+    refresh["transition_window_hours"] = int(refresh.get("transition_window_hours", 168))
+    refresh["snapshot_retention_count"] = int(refresh.get("snapshot_retention_count", 8))
+    refresh["service_action"] = str(refresh.get("service_action", "restart")).strip().lower()
+    refresh["alert_command"] = str(refresh.get("alert_command", "")).strip()
+
+    normalized_sources = []
+    for source in refresh.get("sources", []):
+        if not isinstance(source, (list, tuple)) or len(source) != 2:
+            continue
+        normalized_sources.append([str(source[0]).strip(), str(source[1]).strip()])
+    if normalized_sources:
+        refresh["sources"] = normalized_sources
+    else:
+        refresh["sources"] = copy.deepcopy(DEFAULT_CONFIG["gtfs_static_refresh"]["sources"])
+
     return normalized
 
 
@@ -139,6 +175,7 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
 
     display = normalized["display"]
     feed = normalized["feed"]
+    refresh = normalized["gtfs_static_refresh"]
 
     if display["brightness"] < 0 or display["brightness"] > 100:
         raise ValueError("display.brightness must be between 0 and 100")
@@ -152,6 +189,22 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("display.line_direction_max_length must be > 0")
     if not feed["mta_feed_base_url"]:
         raise ValueError("feed.mta_feed_base_url is required")
+    if refresh["request_timeout_sec"] <= 0:
+        raise ValueError("gtfs_static_refresh.request_timeout_sec must be > 0")
+    if refresh["transition_window_hours"] < 0:
+        raise ValueError("gtfs_static_refresh.transition_window_hours must be >= 0")
+    if refresh["snapshot_retention_count"] < 2:
+        raise ValueError("gtfs_static_refresh.snapshot_retention_count must be >= 2")
+    if refresh["service_action"] not in {"restart", "reload", "none"}:
+        raise ValueError("gtfs_static_refresh.service_action must be one of restart, reload, none")
+
+    source_names = set()
+    for source in refresh["sources"]:
+        if not source[0] or not source[1]:
+            raise ValueError("gtfs_static_refresh.sources entries must contain name and URL")
+        source_names.add(source[0])
+    if {"base", "supplemented"} - source_names:
+        raise ValueError("gtfs_static_refresh.sources must include both 'base' and 'supplemented'")
 
     return normalized
 

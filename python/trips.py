@@ -3,12 +3,12 @@ import pathlib
 import time
 from collections import defaultdict
 from datetime import datetime
-from functools import lru_cache
 
 import requests
 from google.transit import gtfs_realtime_pb2
 
 from config import load_runtime_config
+from gtfs_refresh import get_active_data_dir, get_lookup_data_dirs
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -47,12 +47,12 @@ def _read_csv(path):
         return list(csv.DictReader(handle))
 
 
-@lru_cache(maxsize=1)
 def _load_discovery_catalog():
-    routes_rows = _read_csv(DATA_DIR / "routes.txt")
-    stops_rows = _read_csv(DATA_DIR / "stops.txt")
-    trips_rows = _read_csv(DATA_DIR / "trips.txt")
-    stop_times_rows = _read_csv(DATA_DIR / "stop_times.txt")
+    active_dir = get_active_data_dir(DATA_DIR)
+    routes_rows = _read_csv(active_dir / "routes.txt")
+    stops_rows = _read_csv(active_dir / "stops.txt")
+    trips_rows = _read_csv(active_dir / "trips.txt")
+    stop_times_rows = _read_csv(active_dir / "stop_times.txt")
 
     trip_to_route = {}
     for row in trips_rows:
@@ -123,7 +123,7 @@ def _load_discovery_catalog():
         )
     normalized_stops.sort(key=lambda item: item["stop_name"])
 
-    generated_at_epoch = int(max((path.stat().st_mtime for path in DATA_DIR.glob("*.txt")), default=0))
+    generated_at_epoch = int(max((path.stat().st_mtime for path in active_dir.glob("*.txt")), default=0))
     return {
         "generated_at_epoch": generated_at_epoch,
         "routes": route_options,
@@ -199,40 +199,52 @@ class Trips:
         self.directions = directions
         self.routes = routes
 
+    def _lookup_dirs(self):
+        return get_lookup_data_dirs(DATA_DIR)
+
     def get_stops(self):
         stops = []
-        with open(self.cwd / 'data' / 'stops.txt', 'r', newline='', encoding='utf-8') as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                stop_id = row.get("stop_id", "").strip()
-                stop_name = row.get("stop_name", "").strip()
-                if stop_name == self.station:
-                    direction = _stop_direction(stop_id)
-                    if self.directions is None or direction in self.directions:
-                        stops.append(stop_id)
+        seen = set()
+        for lookup_dir in self._lookup_dirs():
+            with open(lookup_dir / "stops.txt", "r", newline="", encoding="utf-8") as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    stop_id = row.get("stop_id", "").strip()
+                    stop_name = row.get("stop_name", "").strip()
+                    if stop_name == self.station:
+                        direction = _stop_direction(stop_id)
+                        if self.directions is None or direction in self.directions:
+                            if stop_id not in seen:
+                                stops.append(stop_id)
+                                seen.add(stop_id)
         return stops
 
     def get_trip_directions(self):
         trip_directions = {}
-        with open(self.cwd / 'data' / 'trips.txt', 'r', newline='', encoding='utf-8') as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                route_id = row.get("route_id", "").strip()
-                if not self.routes or route_id in self.routes:
-                    trip_id = row.get("trip_id", "").strip()
-                    trip_headsign = row.get("trip_headsign", "").strip()
-                    trip_directions[trip_id.split('.')[-1]] = trip_headsign
+        lookup_dirs = self._lookup_dirs()
+        for lookup_dir in reversed(lookup_dirs):
+            with open(lookup_dir / "trips.txt", "r", newline="", encoding="utf-8") as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    route_id = row.get("route_id", "").strip()
+                    if not self.routes or route_id in self.routes:
+                        trip_id = row.get("trip_id", "").strip()
+                        trip_headsign = row.get("trip_headsign", "").strip()
+                        trip_directions[trip_id.split(".")[-1]] = trip_headsign
         return trip_directions
 
     def get_route_colors(self):
         route_colors = {}
-        with open(self.cwd / 'data' / 'routes.txt', 'r') as file:
-            reader = csv.reader(file)
-            next(reader)  # Skip header
-            for row in reader:
-                if not self.routes or row[1] in self.routes:
-                    route_colors[row[1]] = row[7]  # route_id and route_color
-                else: continue
+        lookup_dirs = self._lookup_dirs()
+        for lookup_dir in reversed(lookup_dirs):
+            with open(lookup_dir / "routes.txt", "r", encoding="utf-8", newline="") as file:
+                reader = csv.reader(file)
+                next(reader)  # Skip header
+                for row in reader:
+                    if not self.routes or row[1] in self.routes:
+                        route_colors[row[1]] = row[7]  # route_id and route_color
+                    else:
+                        continue
         return route_colors
 
     def get_mta_data(self, stations, trip_directions):

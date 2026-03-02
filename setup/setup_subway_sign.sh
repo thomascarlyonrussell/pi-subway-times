@@ -34,6 +34,10 @@ if [ ! -f "$LOG_FILE" ]; then
     sudo chmod 666 $LOG_FILE
 fi
 
+sudo mkdir -p /var/lib/subway-sign/gtfs-static
+sudo chown root:root /var/lib/subway-sign/gtfs-static
+sudo chmod 755 /var/lib/subway-sign/gtfs-static
+
 # Configure systemd service for subway sign display
 echo "Setting up display service..."
 cat <<EOF | sudo tee /etc/systemd/system/subway-sign.service
@@ -55,6 +59,39 @@ EOF
 # Enable and start the service
 sudo systemctl enable subway-sign
 sudo systemctl start subway-sign
+
+# Configure systemd service and timer for static GTFS refresh
+echo "Setting up GTFS static refresh service and timer..."
+cat <<EOF | sudo tee /etc/systemd/system/gtfs-static-refresh.service
+[Unit]
+Description=Refresh static MTA GTFS data
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=$PROJECT_DIR
+ExecStart=/usr/bin/python3 $PROJECT_DIR/python/gtfs_refresh.py
+User=root
+Environment="PYTHONUNBUFFERED=1"
+EOF
+
+cat <<EOF | sudo tee /etc/systemd/system/gtfs-static-refresh.timer
+[Unit]
+Description=Run GTFS static refresh on a semi-monthly cadence
+
+[Timer]
+OnCalendar=*-*-01,15 03:15:00
+Persistent=true
+Unit=gtfs-static-refresh.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable gtfs-static-refresh.timer
+sudo systemctl start gtfs-static-refresh.timer
 
 # Configure systemd service for web configuration UI
 echo "Setting up web configuration service..."
@@ -130,6 +167,24 @@ cat <<EOF | sudo tee /etc/matrix_config_default.json
         "mta_routes": "F,G",
         "mta_stop": "7 Av",
         "mta_feed_base_url": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2F"
+    },
+    "gtfs_static_refresh": {
+        "enabled": true,
+        "request_timeout_sec": 30,
+        "transition_window_hours": 168,
+        "snapshot_retention_count": 8,
+        "service_action": "restart",
+        "alert_command": "",
+        "sources": [
+            [
+                "base",
+                "https://web.mta.info/developers/data/nyct/subway/google_transit.zip"
+            ],
+            [
+                "supplemented",
+                "https://web.mta.info/developers/data/nyct/subway/google_transit_supplemented.zip"
+            ]
+        ]
     }
 }
 EOF

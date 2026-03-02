@@ -22,5 +22,23 @@
         "mta_routes": "F,G",
         "mta_stop": "7 Av",
         "mta_feed_base_url": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2F"
+    },
+    "gtfs_static_refresh": {
+        "enabled": true,
+        "request_timeout_sec": 30,
+        "transition_window_hours": 168,
+        "snapshot_retention_count": 8,
+        "service_action": "restart",
+        "alert_command": "",
+        "sources": [
+            [
+                "base",
+                "https://web.mta.info/developers/data/nyct/subway/google_transit.zip"
+            ],
+            [
+                "supplemented",
+                "https://web.mta.info/developers/data/nyct/subway/google_transit_supplemented.zip"
+            ]
+        ]
     }
 }

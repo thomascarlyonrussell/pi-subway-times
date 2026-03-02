@@ -128,3 +128,29 @@ Run full checks on Raspberry Pi (includes service status checks):
 ```bash
 python3 python/validate_config_flow.py --with-services
 ```
+
+### Static GTFS Refresh
+
+The project now supports static GTFS refresh with dual-source merge:
+- Base archive: `google_transit.zip`
+- Supplement archive: `google_transit_supplemented.zip` (overrides base on key collisions)
+
+Refresh state and snapshots are stored under `/var/lib/subway-sign/gtfs-static` (or `setup/gtfs_static_state` fallback in dev).
+
+Manual forced refresh:
+
+```bash
+python3 python/gtfs_refresh.py --force
+```
+
+Manual rollback to previous snapshot:
+
+```bash
+python3 python/gtfs_refresh.py --rollback
+```
+
+Dev validation for promotion/failure/rollback behavior:
+
+```bash
+python3 python/validate_gtfs_refresh.py
+```
