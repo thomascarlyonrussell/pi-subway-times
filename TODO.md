@@ -12,7 +12,8 @@
 
 ## Phase 2 - Setup and Security
 - [ ] `secure-wifi-onboarding-and-ap-flow`
-  - Add auth and harden AP/WiFi onboarding flow.
+  - [x] Add auth and harden AP/WiFi onboarding flow.
+  - [ ] Remaining validation task: run Raspberry Pi hardware AP rollback test for failed onboarding transition (`task 3.2`).
 - [ ] `add-stop-and-line-discovery-in-config-ui`
   - Add route/stop discovery and validation in web config UI.
   - Execute after config unification so UI writes canonical config.
