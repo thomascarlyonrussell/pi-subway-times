@@ -54,6 +54,15 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
         "route_symbol_max_asset_px": 10,
         "route_symbol_cache_limit": 128,
         "route_symbol_text_max_chars": 2,
+        "route_symbol_aliases": {
+            "5X": "5D",
+            "6X": "6D",
+            "7X": "7D",
+            "FS": "SF",
+            "FX": "FD",
+            "GS": "S",
+            "SI": "SIR",
+        },
     },
     "feed": {
         "mta_routes": "F,G",
@@ -171,6 +180,7 @@ def _normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:
     display["led_hardware_mapping"] = str(display.get("led_hardware_mapping", "")).strip()
     display["route_symbol_assets_dir"] = str(display.get("route_symbol_assets_dir", "")).strip() or "assets/route_symbols"
     display["route_symbol_backends"] = ",".join(_parse_route_symbol_backends(display.get("route_symbol_backends")))
+    display["route_symbol_aliases"] = _normalize_route_symbol_aliases(display.get("route_symbol_aliases"))
 
     feed["mta_routes"] = str(feed.get("mta_routes", "")).upper()
     feed["mta_stop"] = str(feed.get("mta_stop", "")).strip()
@@ -243,6 +253,20 @@ def _parse_route_symbol_backends(value: Any) -> List[str]:
     return deduplicated or ["image", "font", "text"]
 
 
+def _normalize_route_symbol_aliases(value: Any) -> Dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+
+    normalized: Dict[str, str] = {}
+    for raw_key, raw_value in value.items():
+        key = "".join(str(raw_key or "").upper().split())
+        target = "".join(str(raw_value or "").upper().split())
+        if not key or not target:
+            continue
+        normalized[key] = target
+    return normalized
+
+
 def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
     normalized = _normalize_config(config)
 
@@ -283,6 +307,9 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("display.route_symbol_cache_limit must be > 0")
     if display["route_symbol_text_max_chars"] <= 0:
         raise ValueError("display.route_symbol_text_max_chars must be > 0")
+    for alias_key, alias_target in display.get("route_symbol_aliases", {}).items():
+        if not alias_key or not alias_target:
+            raise ValueError("display.route_symbol_aliases entries must define non-empty alias and target")
     backends = _parse_route_symbol_backends(display.get("route_symbol_backends"))
     supported_backends = {"image", "font", "text"}
     if not backends:

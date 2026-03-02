@@ -16,6 +16,15 @@ except ImportError:  # pragma: no cover - optional dependency for image backend
 
 SUPPORTED_IMAGE_EXTENSIONS = (".png",)
 DEFAULT_BACKEND_ORDER = ("image", "font", "text")
+DEFAULT_ROUTE_SYMBOL_ALIASES = {
+    "5X": "5D",
+    "6X": "6D",
+    "7X": "7D",
+    "FS": "SF",
+    "FX": "FD",
+    "GS": "S",
+    "SI": "SIR",
+}
 
 
 def _normalize_route_id(route_id: str) -> str:
@@ -98,13 +107,34 @@ class _AssetMask:
 class ImageRouteSymbolBackend(RouteSymbolBackend):
     name = "image"
 
-    def __init__(self, assets_dir: pathlib.Path, max_asset_px: int, cache_limit: int, logger: logging.Logger):
+    def __init__(
+        self,
+        assets_dir: pathlib.Path,
+        max_asset_px: int,
+        cache_limit: int,
+        route_symbol_aliases: Dict[str, str],
+        logger: logging.Logger,
+    ):
         self.assets_dir = assets_dir
         self.max_asset_px = max(1, int(max_asset_px))
         self.cache_limit = max(1, int(cache_limit))
+        self.route_symbol_aliases = {
+            _normalize_route_id(alias): _normalize_route_id(target)
+            for alias, target in (route_symbol_aliases or {}).items()
+            if _normalize_route_id(alias) and _normalize_route_id(target)
+        }
         self.logger = logger
         self._asset_index = self._build_asset_index()
         self._cache: "OrderedDict[str, _AssetMask]" = OrderedDict()
+
+    def _resolve_symbol_key(self, route_id: str) -> str:
+        normalized = _normalize_route_id(route_id)
+        if normalized in self._asset_index:
+            return normalized
+        alias = self.route_symbol_aliases.get(normalized, "")
+        if alias and alias in self._asset_index:
+            return alias
+        return normalized
 
     def _build_asset_index(self) -> Dict[str, pathlib.Path]:
         if not self.assets_dir.exists():
@@ -159,11 +189,11 @@ class ImageRouteSymbolBackend(RouteSymbolBackend):
         return mask
 
     def can_render(self, route_id: str) -> bool:
-        return _normalize_route_id(route_id) in self._asset_index and Image is not None
+        return self._resolve_symbol_key(route_id) in self._asset_index and Image is not None
 
     def render(self, canvas, route_id: str, x: int, baseline_y: int, color_value: int) -> None:
-        normalized = _normalize_route_id(route_id)
-        mask = self._get_mask(normalized)
+        symbol_key = self._resolve_symbol_key(route_id)
+        mask = self._get_mask(symbol_key)
         if mask is None:
             raise ValueError("Missing or invalid image symbol asset")
 
@@ -215,6 +245,7 @@ def build_route_symbol_renderer(display_config: dict, route_font, text_font, log
     max_asset_px = int(display_config.get("route_symbol_max_asset_px", 10))
     cache_limit = int(display_config.get("route_symbol_cache_limit", 128))
     text_max_chars = int(display_config.get("route_symbol_text_max_chars", 2))
+    route_symbol_aliases = display_config.get("route_symbol_aliases", DEFAULT_ROUTE_SYMBOL_ALIASES)
     assets_dir = pathlib.Path(display_config.get("route_symbol_assets_dir", "assets/route_symbols"))
     if not assets_dir.is_absolute():
         assets_dir = pathlib.Path(__file__).resolve().parent.parent / assets_dir
@@ -223,7 +254,13 @@ def build_route_symbol_renderer(display_config: dict, route_font, text_font, log
         "font": FontRouteSymbolBackend(route_font),
         "text": TextRouteSymbolBackend(text_font, text_max_chars),
     }
-    backends["image"] = ImageRouteSymbolBackend(assets_dir, max_asset_px, cache_limit, logger)
+    backends["image"] = ImageRouteSymbolBackend(
+        assets_dir=assets_dir,
+        max_asset_px=max_asset_px,
+        cache_limit=cache_limit,
+        route_symbol_aliases=route_symbol_aliases,
+        logger=logger,
+    )
 
     resolved = []
     for backend_name in backend_order:

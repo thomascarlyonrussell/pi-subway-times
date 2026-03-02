@@ -11,6 +11,22 @@ The display runtime MUST render route symbols through a route-symbol rendering s
 - **WHEN** selected backend lacks requested symbol
 - **THEN** fallback backend or textual route rendering is used without crashing render loop
 
+#### Scenario: Image backend route ID alias resolution
+- **WHEN** image backend receives a route ID that does not directly match an asset filename
+- **THEN** runtime applies configured alias normalization before deciding asset is unavailable
+
+#### Scenario: Upstream bullet assets are preprocessed for runtime
+- **WHEN** symbol assets are sourced from `louh/mta-subway-bullets`
+- **THEN** runtime uses locally preprocessed panel-sized PNG masks rather than raw upstream images at render time
+
+#### Scenario: Symbol assets must not be dynamically downloaded
+- **WHEN** display runtime starts or refreshes trip data
+- **THEN** symbol rendering uses only local vendored assets and does not perform any network retrieval for symbol files
+
+#### Scenario: Vendored symbol asset attribution is available
+- **WHEN** third-party symbol assets are included in the repository
+- **THEN** attribution metadata (source URL and license reference) is present in `assets/route_symbols/ATTRIBUTION.md`
+
 ### Requirement: Runtime Error Handling Is Fatal
 The display runtime MUST isolate symbol-rendering backend errors and continue rendering with fallback when feasible.
 

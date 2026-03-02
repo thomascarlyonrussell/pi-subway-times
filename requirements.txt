@@ -3,3 +3,4 @@ toml
 gtfs-realtime-bindings
 flask
 cryptography
+Pillow

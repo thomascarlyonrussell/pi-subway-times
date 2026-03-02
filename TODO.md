@@ -33,8 +33,16 @@
   - [ ] Carryover validation task (OpenSpec 3.1): validate frame-rate budget and memory profile in dev environment.
   - [ ] Carryover validation task (OpenSpec 3.2): validate visual output and timing stability on Raspberry Pi hardware.
 - [ ] `expand-mta-font-pack-coverage`
-  - Fill full route symbol coverage in phased batches.
-  - Keep this separate but aligned with rendering abstraction decisions.
+  - [x] Fill full route symbol coverage in phased batches.
+  - [x] Keep this separate but aligned with rendering abstraction decisions.
+  - [ ] Raspberry Pi verification checklist (before marking complete):
+    - Confirm local vendored symbols exist: `ls assets/route_symbols/*.png` (expect 29 files).
+    - Restart display service after asset/config updates: `sudo systemctl restart subway-sign`.
+    - Check service health/logs: `sudo systemctl status subway-sign` and `sudo journalctl -u subway-sign -n 100 --no-pager`.
+    - Verify alias routes render expected bullets (not text fallback): `5X,6X,7X,FS,FX,GS,SI`.
+    - Verify unsupported/missing asset behavior remains deterministic (fallback without crash).
+    - Confirm no frame stutter/flicker for at least 5 minutes of runtime.
+    - Capture quick evidence (photo/video + timestamped log excerpt) and attach to change notes.
 
 ## Implementation Order Summary
 1. `audit-existing-completed-todos`
