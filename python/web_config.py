@@ -9,6 +9,12 @@ from functools import wraps
 import logging
 
 from config import load_runtime_config, save_canonical_config, validate_config
+from trips import (
+    get_discoverable_routes,
+    get_discoverable_stops,
+    get_discovery_metadata,
+    validate_route_stop_selection,
+)
 from wifi_manager import apply_runtime_sequence, encrypt_password, run_systemctl
 
 
@@ -153,6 +159,30 @@ def _to_int(form_data, key, fallback):
     return int(value)
 
 
+def _normalize_route_list(raw_routes):
+    if raw_routes is None:
+        return []
+    if isinstance(raw_routes, str):
+        tokens = raw_routes.split(",")
+    else:
+        tokens = raw_routes
+    normalized = []
+    for token in tokens:
+        cleaned = str(token).strip().upper()
+        if cleaned and cleaned not in normalized:
+            normalized.append(cleaned)
+    return normalized
+
+
+def _extract_routes(form_data, config):
+    selected_routes = _normalize_route_list(form_data.getlist("mta_routes")) if hasattr(form_data, "getlist") else []
+    if len(selected_routes) == 1 and "," in selected_routes[0]:
+        selected_routes = _normalize_route_list(selected_routes[0])
+    if not selected_routes:
+        selected_routes = _normalize_route_list(form_data.get("mta_routes", config["feed"]["mta_routes"]))
+    return ",".join(selected_routes)
+
+
 def _apply_form(config, form_data):
     config = validate_config(config)
     config["wifi"]["ssid"] = form_data.get("ssid", config["wifi"]["ssid"])
@@ -176,9 +206,15 @@ def _apply_form(config, form_data):
     config["display"]["led_hardware_mapping"] = form_data.get("led_hardware_mapping", config["display"]["led_hardware_mapping"])
     config["display"]["line_direction_max_length"] = _to_int(form_data, "line_direction_max_length", config["display"]["line_direction_max_length"])
 
-    config["feed"]["mta_routes"] = form_data.get("mta_routes", config["feed"]["mta_routes"])
-    config["feed"]["mta_stop"] = form_data.get("mta_stop", config["feed"]["mta_stop"])
+    config["feed"]["mta_routes"] = _extract_routes(form_data, config)
+    config["feed"]["mta_stop"] = form_data.get("mta_stop", config["feed"]["mta_stop"]).strip()
     config["feed"]["mta_feed_base_url"] = form_data.get("mta_feed_base_url", config["feed"]["mta_feed_base_url"])
+
+    validate_route_stop_selection(
+        config["feed"]["mta_routes"],
+        config["feed"]["mta_stop"],
+        config["display"]["mta_directions"],
+    )
 
     return validate_config(config)
 
@@ -211,7 +247,7 @@ def index():
             restarted_web = apply_runtime_changes(
                 restart_web_config=request.args.get("restart_web_config", "0") == "1"
             )
-            msg = "Settings updated. Restarted subway-sign."
+            msg = "Settings updated. Restarted subway-sign to apply route/stop changes."
             if restarted_web:
                 msg += " Restarted web-config."
             else:
@@ -279,6 +315,36 @@ def auth_status():
         {
             "authenticated": _session_authenticated(),
             "ttl_sec": SESSION_TTL_SEC,
+        }
+    )
+
+
+@app.route("/api/discovery/routes", methods=["GET"])
+@require_setup_session
+def discovery_routes():
+    metadata = get_discovery_metadata()
+    return jsonify(
+        {
+            "generated_at_epoch": metadata["generated_at_epoch"],
+            "routes": get_discoverable_routes(),
+        }
+    )
+
+
+@app.route("/api/discovery/stops", methods=["GET"])
+@require_setup_session
+def discovery_stops():
+    routes = _normalize_route_list(request.args.getlist("routes"))
+    if len(routes) == 1 and "," in routes[0]:
+        routes = _normalize_route_list(routes[0])
+    directions = request.args.get("directions", "")
+    return jsonify(
+        {
+            "filters": {
+                "routes": routes,
+                "directions": directions,
+            },
+            "stops": get_discoverable_stops(routes, directions),
         }
     )
 

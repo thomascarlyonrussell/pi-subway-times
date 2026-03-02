@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import copy
+import importlib
 import json
 import os
 import pathlib
@@ -42,6 +43,8 @@ def _setup_local_config_files() -> None:
 def _set_local_env() -> None:
     os.environ["MATRIX_CONFIG_PATH"] = str(LOCAL_CONFIG_PATH)
     os.environ["MATRIX_CONFIG_DEFAULT_PATH"] = str(LOCAL_DEFAULT_PATH)
+    os.environ["SETUP_PIN_FILE"] = str(VALIDATION_DIR / "subway_setup_pin")
+    os.environ["WEB_CONFIG_SECRET_FILE"] = str(VALIDATION_DIR / "web_config_secret")
 
 
 def validate_local_flow() -> List[str]:
@@ -97,6 +100,97 @@ def validate_local_flow() -> List[str]:
     return failures
 
 
+def validate_discovery_and_save_flow() -> List[str]:
+    failures: List[str] = []
+
+    _setup_local_config_files()
+    _set_local_env()
+
+    try:
+        seed = copy.deepcopy(DEFAULT_CONFIG)
+        seed["feed"]["mta_routes"] = "F,G"
+        seed["feed"]["mta_stop"] = "7 Av"
+        seed["display"]["mta_directions"] = "N"
+        save_canonical_config(seed, LOCAL_CONFIG_PATH)
+    except Exception as exc:
+        failures.append(f"seed config failed: {exc}")
+        _print_fail(f"Seed config failed: {exc}")
+        return failures
+
+    try:
+        import web_config  # local import so env overrides apply before module import
+        web_config = importlib.reload(web_config)
+        web_config.apply_runtime_changes = lambda restart_web_config=False: False
+        web_config.app.testing = True
+
+        with web_config.app.test_client() as client:
+            unauth_routes = client.get("/api/discovery/routes")
+            if unauth_routes.status_code == 401:
+                _print_ok("Discovery routes endpoint requires setup authentication")
+            else:
+                failures.append("discovery routes endpoint accepted unauthenticated request")
+                _print_fail("Discovery routes endpoint should require authentication")
+
+            auth_response = client.post("/auth/login", json={"pin": web_config.SETUP_PIN})
+            if auth_response.status_code != 200:
+                failures.append("setup login failed for discovery validation")
+                _print_fail("Setup login failed for discovery validation")
+                return failures
+
+            routes_response = client.get("/api/discovery/routes")
+            routes_payload = routes_response.get_json() or {}
+            route_ids = {route.get("route_id") for route in routes_payload.get("routes", [])}
+            if routes_response.status_code == 200 and "F" in route_ids:
+                _print_ok("Discovery routes endpoint returns GTFS-backed route options")
+            else:
+                failures.append("discovery routes endpoint did not return expected route data")
+                _print_fail("Discovery routes endpoint did not return expected route data")
+
+            stops_response = client.get("/api/discovery/stops?routes=F,G&directions=N")
+            stops_payload = stops_response.get_json() or {}
+            stop_names = {stop.get("stop_name") for stop in stops_payload.get("stops", [])}
+            if stops_response.status_code == 200 and "7 Av" in stop_names:
+                _print_ok("Discovery stops endpoint filters by selected routes and direction")
+            else:
+                failures.append("discovery stops endpoint did not return expected filtered stops")
+                _print_fail("Discovery stops endpoint did not return expected filtered stops")
+
+            valid_save = client.post(
+                "/",
+                data={
+                    "mta_routes": "F,G",
+                    "mta_stop": "7 Av",
+                    "mta_directions": "N",
+                },
+            )
+            valid_payload = valid_save.get_json() or {}
+            if valid_save.status_code == 200 and "Restarted subway-sign" in valid_payload.get("message", ""):
+                _print_ok("Config save succeeds for valid route/stop/direction selection")
+            else:
+                failures.append("valid config save did not succeed with restart messaging")
+                _print_fail("Valid config save did not succeed with restart messaging")
+
+            invalid_save = client.post(
+                "/",
+                data={
+                    "mta_routes": "F,G",
+                    "mta_stop": "Invalid Stop",
+                    "mta_directions": "N",
+                },
+            )
+            if invalid_save.status_code == 400:
+                _print_ok("Config save rejects invalid route/stop/direction combinations")
+            else:
+                failures.append("invalid route/stop combination unexpectedly succeeded")
+                _print_fail("Invalid route/stop combination unexpectedly succeeded")
+
+    except Exception as exc:
+        failures.append(f"discovery/save validation failed: {exc}")
+        _print_fail(f"Discovery/save validation failed: {exc}")
+
+    return failures
+
+
 def validate_service_checks() -> List[str]:
     failures: List[str] = []
     commands = [
@@ -137,6 +231,8 @@ def main() -> int:
 
     print("Running local unified-config checks...")
     failures = validate_local_flow()
+    print("Running route/stop discovery + save flow checks...")
+    failures.extend(validate_discovery_and_save_flow())
 
     if args.with_services:
         print("Running service-level checks...")

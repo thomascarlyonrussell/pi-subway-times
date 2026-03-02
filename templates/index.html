@@ -6,9 +6,10 @@
     <title>Subway Sign Config</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; }
-        input { margin-bottom: 10px; width: 100%; padding: 5px; }
+        input, select { margin-bottom: 10px; width: 100%; padding: 5px; }
         label { font-weight: bold; }
         .section { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; }
+        .helper { color: #666; font-size: 0.9em; margin-top: -5px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -74,10 +75,15 @@
         <div class="section">
             <h2>Feed Settings</h2>
             <label>MTA Routes:</label>
-            <input type="text" name="mta_routes" value="{{ config.feed.mta_routes }}"><br>
+            <select id="mta-routes-select" multiple size="8"></select>
+            <input type="hidden" id="mta-routes-input" name="mta_routes" value="{{ config.feed.mta_routes }}">
+            <div class="helper">Hold Ctrl/Cmd to select multiple routes.</div>
 
             <label>MTA Stop:</label>
-            <input type="text" name="mta_stop" value="{{ config.feed.mta_stop }}"><br>
+            <select id="mta-stop-select" name="mta_stop">
+                <option value="{{ config.feed.mta_stop }}" selected>{{ config.feed.mta_stop }}</option>
+            </select>
+            <div class="helper" id="mta-stop-helper">Stops are filtered by selected routes and directions.</div>
 
             <label>MTA Feed Base URL:</label>
             <input type="text" name="mta_feed_base_url" value="{{ config.feed.mta_feed_base_url }}"><br>
@@ -93,6 +99,112 @@
     </form>
 </body>
 <script>
+    const routeSelect = document.getElementById("mta-routes-select");
+    const routeInput = document.getElementById("mta-routes-input");
+    const stopSelect = document.getElementById("mta-stop-select");
+    const stopHelper = document.getElementById("mta-stop-helper");
+    const directionInput = document.querySelector("input[name='mta_directions']");
+    const initialRoutes = (routeInput.value || "")
+        .split(",")
+        .map(value => value.trim().toUpperCase())
+        .filter(Boolean);
+    const initialStop = "{{ config.feed.mta_stop }}";
+
+    function selectedRoutes() {
+        return Array.from(routeSelect.selectedOptions).map(option => option.value);
+    }
+
+    function updateHiddenRoutes() {
+        routeInput.value = selectedRoutes().join(",");
+    }
+
+    function showStopStatus(message) {
+        stopHelper.textContent = message;
+    }
+
+    function renderStopOptions(stops) {
+        const currentSelection = stopSelect.value || initialStop;
+        stopSelect.innerHTML = "";
+        if (!stops.length) {
+            const option = document.createElement("option");
+            option.value = "";
+            option.textContent = "No compatible stops found";
+            stopSelect.appendChild(option);
+            showStopStatus("No compatible stops found for the selected routes/directions.");
+            return;
+        }
+
+        stops.forEach(stop => {
+            const option = document.createElement("option");
+            option.value = stop.stop_name;
+            option.textContent = `${stop.stop_name} (${stop.route_ids.join(",")})`;
+            if (stop.stop_name === currentSelection) {
+                option.selected = true;
+            }
+            stopSelect.appendChild(option);
+        });
+
+        if (!Array.from(stopSelect.options).some(option => option.selected)) {
+            stopSelect.options[0].selected = true;
+        }
+        showStopStatus(`Showing ${stops.length} compatible stops.`);
+    }
+
+    function loadStops() {
+        updateHiddenRoutes();
+        const routes = selectedRoutes();
+        const directions = (directionInput.value || "").trim();
+        const query = new URLSearchParams();
+        if (routes.length) {
+            query.set("routes", routes.join(","));
+        }
+        query.set("directions", directions);
+        fetch(`/api/discovery/stops?${query.toString()}`)
+            .then(response => response.json().then(data => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    showStopStatus(data.message || "Authenticate to load stop choices.");
+                    return;
+                }
+                renderStopOptions(data.stops || []);
+            })
+            .catch(() => {
+                showStopStatus("Failed to load stops.");
+            });
+    }
+
+    function loadRoutesAndStops() {
+        fetch("/api/discovery/routes")
+            .then(response => response.json().then(data => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    showStopStatus(data.message || "Authenticate to load route choices.");
+                    return;
+                }
+                routeSelect.innerHTML = "";
+                (data.routes || []).forEach(route => {
+                    const option = document.createElement("option");
+                    option.value = route.route_id;
+                    option.textContent = `${route.route_id} - ${route.route_long_name || route.route_short_name || ""}`;
+                    if (initialRoutes.includes(route.route_id)) {
+                        option.selected = true;
+                    }
+                    routeSelect.appendChild(option);
+                });
+                if (!selectedRoutes().length && routeSelect.options.length > 0) {
+                    routeSelect.options[0].selected = true;
+                }
+                loadStops();
+            })
+            .catch(() => {
+                showStopStatus("Failed to load routes.");
+            });
+    }
+
+    routeSelect.addEventListener("change", loadStops);
+    directionInput.addEventListener("change", loadStops);
+    directionInput.addEventListener("input", loadStops);
+
     document.getElementById("auth-button").onclick = function() {
         const pin = document.getElementById("setup-pin").value;
         fetch("/auth/login", {
@@ -103,12 +215,16 @@
         .then(response => response.json().then(data => ({ ok: response.ok, data })))
         .then(({ ok, data }) => {
             alert(data.message || (ok ? "Authenticated." : "Authentication failed."));
+            if (ok) {
+                loadRoutesAndStops();
+            }
         });
     };
 </script>
 <script>
     document.querySelector("form").onsubmit = function(event) {
         event.preventDefault(); 
+        updateHiddenRoutes();
         fetch("/", {
             method: "POST",
             body: new FormData(document.querySelector("form"))
@@ -124,6 +240,7 @@
             }, 3000);
         });
     };
+    loadRoutesAndStops();
 </script>
 <script>
     document.getElementById("reset-button").onclick = function() {
