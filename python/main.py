@@ -1,5 +1,4 @@
 import pathlib
-import time
 import os
 import time
 import logging
@@ -26,6 +25,7 @@ display_config = config["display"]
 feed_config = config["feed"]
 
 REFRESH_TIME_DELAY = display_config["refresh_time_delay"]
+STALE_DATA_GRACE_SEC = display_config["stale_data_grace_sec"]
 ROTATE_TRIP_DELAY = display_config["rotate_trip_delay"]
 SCREEN_REFRESH_INTERVAL = display_config["screen_refresh_interval"]
 MINIMUM_ARRIVAL_MINUTES = display_config["minimum_arrival_minutes"]
@@ -42,6 +42,25 @@ MTA_DIRECTIONS = [direction.strip() for direction in display_config["mta_directi
 
 # Load data once at startup
 trips = Trips(MTA_STOP, MTA_DIRECTIONS, MTA_ROUTES, config=config)
+
+
+def _placeholder_trips():
+    placeholder = {
+        "line": "--",
+        "direction": "No Data",
+        "minutes_until_arrival": "--",
+        "route_color": "FFFFFF",
+    }
+    return [dict(placeholder), dict(placeholder), dict(placeholder)]
+
+
+def _normalize_for_render(trip_data):
+    if not trip_data:
+        return _placeholder_trips()
+    rows = list(trip_data)
+    while len(rows) < 3:
+        rows.append(dict(rows[-1]))
+    return rows
 
 # Initialize the RGBMatrix
 options = RGBMatrixOptions()
@@ -67,41 +86,53 @@ start_time = time.monotonic()
 rotate_time = start_time
 time.sleep(1)
 TRIP_JSON = trips.fetch_trip_data()
+last_success_time = time.monotonic() if TRIP_JSON else 0.0
+current_refresh_delay = max(1, int(getattr(trips, "last_refresh_interval_sec", REFRESH_TIME_DELAY)))
 bottom_row_index = 2
 
 try:
     while True:
-        if (time.monotonic() - start_time) > REFRESH_TIME_DELAY:
-            TRIP_JSON = trips.fetch_trip_data()
+        now = time.monotonic()
+        elapsed_since_fetch = now - start_time
+        stale_elapsed = (now - last_success_time) if last_success_time else float("inf")
+        if elapsed_since_fetch > current_refresh_delay or stale_elapsed > STALE_DATA_GRACE_SEC:
+            latest_trips = trips.fetch_trip_data()
             start_time = time.monotonic()
+            current_refresh_delay = max(1, int(getattr(trips, "last_refresh_interval_sec", REFRESH_TIME_DELAY)))
+            if latest_trips:
+                TRIP_JSON = latest_trips
+                last_success_time = time.monotonic()
+
+        render_rows = _normalize_for_render(TRIP_JSON)
         if (time.monotonic() - rotate_time) > ROTATE_TRIP_DELAY:
-            bottom_row_index =  bottom_row_index + 1 if bottom_row_index < len(TRIP_JSON) - 1 else 2
+            bottom_row_index = bottom_row_index + 1 if bottom_row_index < len(render_rows) - 1 else 2
             rotate_time = time.monotonic()
 
         canvas.Clear()
         # First Row
-        color_value = int(TRIP_JSON[0].get('route_color', 'FFFFFF'), 16)
+        color_value = int(render_rows[0].get('route_color', 'FFFFFF'), 16)
         color = get_clamped_color(color_value)
-        graphics.DrawText(canvas, route_font, 0, 10, color, TRIP_JSON[0]["line"])
-        graphics.DrawText(canvas, font, 11, 9, color, TRIP_JSON[0]["direction"][:LINE_DIRECTION_MAX_LENGTH])
-        graphics.DrawText(canvas, font, 55, 9, color, str(TRIP_JSON[0]["minutes_until_arrival"]))
+        graphics.DrawText(canvas, route_font, 0, 10, color, render_rows[0]["line"])
+        graphics.DrawText(canvas, font, 11, 9, color, render_rows[0]["direction"][:LINE_DIRECTION_MAX_LENGTH])
+        graphics.DrawText(canvas, font, 55, 9, color, str(render_rows[0]["minutes_until_arrival"]))
 
         # Second Row
-        color_value = int(TRIP_JSON[1].get('route_color', 'FFFFFF'), 16)
+        color_value = int(render_rows[1].get('route_color', 'FFFFFF'), 16)
         color = get_clamped_color(color_value)
-        graphics.DrawText(canvas, route_font, 0, 20, color, TRIP_JSON[1]["line"])
-        graphics.DrawText(canvas, font, 11, 19, color, TRIP_JSON[1]["direction"][:LINE_DIRECTION_MAX_LENGTH])
-        graphics.DrawText(canvas, font, 55, 19, color, str(TRIP_JSON[1]["minutes_until_arrival"]))
+        graphics.DrawText(canvas, route_font, 0, 20, color, render_rows[1]["line"])
+        graphics.DrawText(canvas, font, 11, 19, color, render_rows[1]["direction"][:LINE_DIRECTION_MAX_LENGTH])
+        graphics.DrawText(canvas, font, 55, 19, color, str(render_rows[1]["minutes_until_arrival"]))
 
         # Third Row
-        color_value = int(TRIP_JSON[bottom_row_index].get('route_color', 'FFFFFF'), 16)
+        color_value = int(render_rows[bottom_row_index].get('route_color', 'FFFFFF'), 16)
         color = get_clamped_color(color_value)
-        graphics.DrawText(canvas, route_font, 0, 30, color, TRIP_JSON[bottom_row_index]["line"])
-        graphics.DrawText(canvas, font, 11, 29, color, TRIP_JSON[bottom_row_index]["direction"][:LINE_DIRECTION_MAX_LENGTH])
-        graphics.DrawText(canvas, font, 55, 29, color, str(TRIP_JSON[bottom_row_index]["minutes_until_arrival"]))
+        graphics.DrawText(canvas, route_font, 0, 30, color, render_rows[bottom_row_index]["line"])
+        graphics.DrawText(canvas, font, 11, 29, color, render_rows[bottom_row_index]["direction"][:LINE_DIRECTION_MAX_LENGTH])
+        graphics.DrawText(canvas, font, 55, 29, color, str(render_rows[bottom_row_index]["minutes_until_arrival"]))
 
         elapsed_time = time.monotonic() - start_time
-        pixels_on = int(((REFRESH_TIME_DELAY - elapsed_time) / REFRESH_TIME_DELAY) * LED_COLUMNS)
+        remaining = max(0.0, current_refresh_delay - elapsed_time)
+        pixels_on = int((remaining / float(current_refresh_delay)) * LED_COLUMNS)
         color = graphics.Color(255, 255, 255)
         graphics.DrawLine(canvas, 0, 31, pixels_on, 31, color)
 

@@ -23,8 +23,9 @@
   - [x] Add scheduled static GTFS refresh with rollback/transition safeguards.
   - [ ] Remaining validation task: run `python3 python/validate_gtfs_refresh.py --with-pi-checks` on Raspberry Pi hardware and verify `gtfs-static-refresh.timer` / `subway-sign` runtime stability.
 - [ ] `improve-trip-direction-mapping-and-fetch-cadence`
-  - Expand realtime feed group coverage for additional lines.
-  - Add adaptive polling and direction mapping improvements.
+  - [x] Expand realtime feed group coverage for additional lines.
+  - [x] Add adaptive polling and direction mapping improvements.
+  - [ ] Remaining validation task: run Raspberry Pi hardware validation for API call reduction, display freshness, and transition-period behavior (`task 3.2`).
 
 ## Phase 4 - Rendering and Symbol Support
 - [ ] `modernize-route-rendering-and-glyph-strategy`

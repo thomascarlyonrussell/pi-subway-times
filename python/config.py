@@ -4,7 +4,7 @@ import logging
 import os
 import pathlib
 import tempfile
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     import toml
@@ -31,6 +31,14 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
         "brightness": 100,
         "mta_directions": "N",
         "refresh_time_delay": 30,
+        "adaptive_refresh_enabled": True,
+        "adaptive_refresh_min_sec": 15,
+        "adaptive_refresh_max_sec": 60,
+        "adaptive_refresh_imminent_threshold_min": 5,
+        "adaptive_refresh_far_threshold_min": 20,
+        "realtime_feed_cadence_sec": 30,
+        "stale_data_grace_sec": 120,
+        "direction_mapping_rules": [],
         "rotate_trip_delay": 4,
         "screen_refresh_interval": 2,
         "minimum_arrival_minutes": 2,
@@ -127,6 +135,12 @@ def _normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:
     int_fields = (
         "brightness",
         "refresh_time_delay",
+        "adaptive_refresh_min_sec",
+        "adaptive_refresh_max_sec",
+        "adaptive_refresh_imminent_threshold_min",
+        "adaptive_refresh_far_threshold_min",
+        "realtime_feed_cadence_sec",
+        "stale_data_grace_sec",
         "rotate_trip_delay",
         "screen_refresh_interval",
         "minimum_arrival_minutes",
@@ -139,6 +153,8 @@ def _normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:
     )
     for field in int_fields:
         display[field] = int(display[field])
+    display["adaptive_refresh_enabled"] = bool(display.get("adaptive_refresh_enabled", True))
+    display["direction_mapping_rules"] = _normalize_direction_mapping_rules(display.get("direction_mapping_rules"))
 
     wifi["ssid"] = str(wifi.get("ssid", ""))
     wifi["password"] = str(wifi.get("password", ""))
@@ -170,6 +186,38 @@ def _normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
+def _normalize_direction_mapping_rules(value: Any) -> List[Dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+
+    normalized_rules: List[Dict[str, Any]] = []
+    for index, rule in enumerate(value):
+        if not isinstance(rule, dict):
+            continue
+        selectors = rule.get("match", {})
+        if not isinstance(selectors, dict):
+            selectors = {}
+
+        normalized_selectors: Dict[str, str] = {}
+        for key in ("route_id", "stop_id", "direction"):
+            selector_value = selectors.get(key, "")
+            cleaned = str(selector_value).strip()
+            if not cleaned:
+                continue
+            normalized_selectors[key] = cleaned.upper() if key != "direction" else " ".join(cleaned.upper().split())
+
+        normalized_rules.append(
+            {
+                "match": normalized_selectors,
+                "label": str(rule.get("label", "")).strip(),
+                "priority": int(rule.get("priority", 100)),
+                "_index": index,
+            }
+        )
+
+    return normalized_rules
+
+
 def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
     normalized = _normalize_config(config)
 
@@ -181,12 +229,41 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("display.brightness must be between 0 and 100")
     if display["minimum_arrival_minutes"] < 0:
         raise ValueError("display.minimum_arrival_minutes must be >= 0")
+    if display["adaptive_refresh_min_sec"] <= 0:
+        raise ValueError("display.adaptive_refresh_min_sec must be > 0")
+    if display["adaptive_refresh_max_sec"] < display["adaptive_refresh_min_sec"]:
+        raise ValueError("display.adaptive_refresh_max_sec must be >= adaptive_refresh_min_sec")
+    if display["adaptive_refresh_imminent_threshold_min"] < 0:
+        raise ValueError("display.adaptive_refresh_imminent_threshold_min must be >= 0")
+    if (
+        display["adaptive_refresh_far_threshold_min"]
+        < display["adaptive_refresh_imminent_threshold_min"]
+    ):
+        raise ValueError(
+            "display.adaptive_refresh_far_threshold_min must be >= adaptive_refresh_imminent_threshold_min"
+        )
+    if display["realtime_feed_cadence_sec"] <= 0:
+        raise ValueError("display.realtime_feed_cadence_sec must be > 0")
+    if display["stale_data_grace_sec"] <= 0:
+        raise ValueError("display.stale_data_grace_sec must be > 0")
     if display["maximum_arrival_minutes"] < display["minimum_arrival_minutes"]:
         raise ValueError("display.maximum_arrival_minutes must be >= minimum_arrival_minutes")
     if display["led_rows"] <= 0 or display["led_columns"] <= 0:
         raise ValueError("display.led_rows and display.led_columns must be > 0")
     if display["line_direction_max_length"] <= 0:
         raise ValueError("display.line_direction_max_length must be > 0")
+    selector_to_label: Dict[tuple, str] = {}
+    for rule in display["direction_mapping_rules"]:
+        if not rule["label"]:
+            raise ValueError("display.direction_mapping_rules entries must define a non-empty label")
+        if rule["priority"] < 0:
+            raise ValueError("display.direction_mapping_rules entries must use priority >= 0")
+        selector_key = tuple(sorted(rule["match"].items()))
+        if selector_key in selector_to_label and selector_to_label[selector_key] != rule["label"]:
+            raise ValueError(
+                "display.direction_mapping_rules contains conflicting labels for identical match selectors"
+            )
+        selector_to_label[selector_key] = rule["label"]
     if not feed["mta_feed_base_url"]:
         raise ValueError("feed.mta_feed_base_url is required")
     if refresh["request_timeout_sec"] <= 0:
