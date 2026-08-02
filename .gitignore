@@ -7,6 +7,7 @@ python/.validation/
 setup/.tmp/
 setup/gtfs_static_state/
 setup/subway_sign.log
+data/
 
 # Device-local secrets created during provisioning.
 setup/encryption.key

@@ -3,7 +3,7 @@ Define the current behavior of GTFS static parsing, MTA realtime feed ingestion,
 
 ## Requirements
 ### Requirement: Static GTFS Inputs Are Read from the Active Local Dataset
-The trip data pipeline SHALL read stops, trips, and routes metadata from the active promoted GTFS snapshot on each fetch cycle. When no snapshot is active, it SHALL use local files under `data/` as a bootstrap fallback; during the configured transition window, it SHALL also consult the previous snapshot for lookup compatibility.
+The trip data pipeline SHALL read stops, trips, and routes metadata from the active promoted GTFS snapshot on each fetch cycle. It SHALL fail clearly when no active snapshot is available; during the configured transition window, it SHALL also consult the previous snapshot for lookup compatibility.
 
 #### Scenario: Stop filtering by station and direction
 - **WHEN** `get_stops()` is called with configured `station` and `directions`

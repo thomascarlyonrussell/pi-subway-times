@@ -143,7 +143,7 @@ Use `Ctrl + C` to stop it. The emulator loads the same runtime configuration as 
 MATRIX_CONFIG_PATH=/path/to/matrix_config.json python3 python/console_emulator.py
 ```
 
-The emulator requests live MTA data through the production trip pipeline, so it needs network access, current static GTFS files, and the Python dependencies in `requirements.txt`. It displays logical route, direction, arrival, refresh, and error state only; it does not reproduce LED pixels, fonts, colors, symbols, GPIO behavior, or hardware refresh timing.
+The emulator requests live MTA data through the production trip pipeline, so it needs network access, an active static GTFS snapshot, and the Python dependencies in `requirements.txt`. Create a snapshot with `python3 python/gtfs_refresh.py --force` before using the emulator on a fresh checkout. It displays logical route, direction, arrival, refresh, and error state only; it does not reproduce LED pixels, fonts, colors, symbols, GPIO behavior, or hardware refresh timing.
 
 ### Static GTFS Refresh
 

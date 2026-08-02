@@ -19,7 +19,6 @@ from config import load_runtime_config
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-DEFAULT_DATA_DIR = REPO_ROOT / "data"
 DEFAULT_STATE_DIR = REPO_ROOT / "setup" / "gtfs_static_state"
 SYSTEM_STATE_DIR = pathlib.Path("/var/lib/subway-sign/gtfs-static")
 
@@ -185,7 +184,6 @@ def _run_service_action(action: str) -> subprocess.CompletedProcess:
 class GtfsStaticRefresher:
     def __init__(
         self,
-        data_dir: pathlib.Path,
         state_dir: pathlib.Path,
         sources: Sequence[GtfsSource],
         timeout_sec: int,
@@ -194,7 +192,6 @@ class GtfsStaticRefresher:
         service_action: str,
         alert_command: str = "",
     ):
-        self.data_dir = data_dir
         self.state_dir = state_dir
         self.sources = list(sources)
         self.timeout_sec = timeout_sec
@@ -214,7 +211,6 @@ class GtfsStaticRefresher:
         configured_sources = refresh_cfg.get("sources") or DEFAULT_SOURCES
         sources = [GtfsSource(name=str(name), url=str(url)) for name, url in configured_sources]
         return cls(
-            data_dir=DEFAULT_DATA_DIR,
             state_dir=_resolve_state_dir(),
             sources=sources,
             timeout_sec=int(refresh_cfg.get("request_timeout_sec", 30)),
@@ -423,14 +419,15 @@ def _state_files() -> Dict[str, pathlib.Path]:
     }
 
 
-def get_active_data_dir(default_data_dir: Optional[pathlib.Path] = None) -> pathlib.Path:
-    base_data_dir = default_data_dir or DEFAULT_DATA_DIR
+def get_active_data_dir() -> pathlib.Path:
     state = _load_json(_state_files()["current"])
     if state:
         candidate = pathlib.Path(state.get("path", ""))
         if candidate.exists():
             return candidate
-    return base_data_dir
+    raise RuntimeError(
+        "No active GTFS static snapshot is available. Run 'python3 python/gtfs_refresh.py --force' before starting the sign."
+    )
 
 
 def get_previous_data_dir_within_transition(now_epoch: Optional[int] = None) -> Optional[pathlib.Path]:
@@ -451,8 +448,8 @@ def get_previous_data_dir_within_transition(now_epoch: Optional[int] = None) -> 
     return None
 
 
-def get_lookup_data_dirs(default_data_dir: Optional[pathlib.Path] = None) -> List[pathlib.Path]:
-    dirs = [get_active_data_dir(default_data_dir)]
+def get_lookup_data_dirs() -> List[pathlib.Path]:
+    dirs = [get_active_data_dir()]
     previous = get_previous_data_dir_within_transition()
     if previous:
         dirs.append(previous)
@@ -464,6 +461,11 @@ def main() -> int:
     parser.add_argument("--force", action="store_true", help="Run refresh even if disabled in config.")
     parser.add_argument("--dry-run", action="store_true", help="Run download/merge/validate without promotion.")
     parser.add_argument("--rollback", action="store_true", help="Rollback to previous snapshot.")
+    parser.add_argument(
+        "--skip-service-action",
+        action="store_true",
+        help="Promote data without restarting or reloading the display service.",
+    )
     args = parser.parse_args()
 
     config = load_runtime_config()
@@ -475,6 +477,8 @@ def main() -> int:
         return 0
 
     refresher = GtfsStaticRefresher.from_config(config=config)
+    if args.skip_service_action:
+        refresher.service_action = "none"
     result = refresher.rollback() if args.rollback else refresher.refresh(force=args.force, dry_run=args.dry_run)
     print(json.dumps(result))
     return 0 if result.get("ok") else 1

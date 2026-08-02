@@ -13,7 +13,6 @@ from gtfs_refresh import get_active_data_dir, get_lookup_data_dirs
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-DATA_DIR = REPO_ROOT / "data"
 
 
 def _to_csv_tokens(value):
@@ -53,7 +52,7 @@ def _read_csv(path):
 
 
 def _load_discovery_catalog():
-    active_dir = get_active_data_dir(DATA_DIR)
+    active_dir = get_active_data_dir()
     routes_rows = _read_csv(active_dir / "routes.txt")
     stops_rows = _read_csv(active_dir / "stops.txt")
     trips_rows = _read_csv(active_dir / "trips.txt")
@@ -210,7 +209,7 @@ class Trips:
         self.last_fetch_error = ""
 
     def _lookup_dirs(self):
-        return get_lookup_data_dirs(DATA_DIR)
+        return get_lookup_data_dirs()
 
     def _load_direction_mapping_rules(self) -> List[Dict[str, Any]]:
         rules = []

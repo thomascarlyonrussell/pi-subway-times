@@ -1,5 +1,0 @@
-service_id,date,exception_type
-Weekday,20241225,2
-Sunday,20241225,1
-Weekday,20250101,2
-Sunday,20250101,1
