@@ -2,16 +2,16 @@
 Define the current behavior of GTFS static parsing, MTA realtime feed ingestion, filtering, sorting, enrichment, and retry behavior in `python/trips.py`.
 
 ## Requirements
-### Requirement: Static GTFS Inputs Are Read from Local Data Files
-The trip data pipeline SHALL read stops, trips, and routes metadata from local files under `data/` on each fetch cycle.
+### Requirement: Static GTFS Inputs Are Read from the Active Local Dataset
+The trip data pipeline SHALL read stops, trips, and routes metadata from the active promoted GTFS snapshot on each fetch cycle. It SHALL fail clearly when no active snapshot is available; during the configured transition window, it SHALL also consult the previous snapshot for lookup compatibility.
 
 #### Scenario: Stop filtering by station and direction
 - **WHEN** `get_stops()` is called with configured `station` and `directions`
-- **THEN** it returns stop IDs from `data/stops.txt` whose stop name matches and whose suffix direction matches configured directions
+- **THEN** it returns stop IDs from the active lookup dataset whose stop name matches and whose suffix direction matches configured directions
 
 #### Scenario: Trip direction map generation
 - **WHEN** `get_trip_directions()` is called
-- **THEN** it builds a map from parsed trip ID suffix to `trip_headsign` using `data/trips.txt` filtered by configured routes
+- **THEN** it builds a map from parsed trip ID suffix to `trip_headsign` using the active lookup dataset filtered by configured routes
 
 ### Requirement: MTA Realtime Feeds Are Selected by Route-to-Feed Mapping
 The trip data pipeline SHALL build feed URLs by matching configured routes against internal `MTA_FEEDS` mapping and requesting each matching feed endpoint.
@@ -26,6 +26,10 @@ The trip data pipeline SHALL keep only trip updates for configured routes and co
 #### Scenario: Trip update inclusion
 - **WHEN** a realtime entity has `trip_update` entries for configured route and stop IDs
 - **THEN** the pipeline emits normalized trip records with `line`, `arrival_time`, `minutes_until_arrival`, and `direction`
+
+#### Scenario: Realtime trip ID differs from static schedule ID
+- **WHEN** a realtime trip ID does not exactly match a static trip ID suffix during a schedule transition
+- **THEN** the pipeline uses a unique static headsign matching the realtime directional suffix when available, otherwise a directional label or `Direction unavailable`
 
 ### Requirement: Arrival Window and Sorting Are Applied
 The trip data pipeline SHALL filter trips to the configured arrival bounds and sort ascending by `minutes_until_arrival`, returning up to `max_list` rows.

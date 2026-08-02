@@ -28,7 +28,7 @@ Key code lives in `python/`:
 | `web_config.py` | Flask-based web UI for configuration.
 | `wifi_manager.py` | Wi‑Fi credential management & AP mode logic.
 
-Static data (`data/*.txt`) contains GTFS files used for stop/route lookups.
+Static GTFS snapshots under `/var/lib/subway-sign/gtfs-static` contain the stop and route lookup data. Provisioning downloads the initial snapshot before starting the display service.
 `settings.toml` is the canonical configuration; a JSON copy (`/etc/matrix_config.json`)
 is written by the web UI.
 
@@ -108,8 +108,9 @@ discharged via the web UI.
   cautious when editing systemd units.
 - **Dual configuration formats**: avoid editing only one source; the web UI
   overwrites `settings.toml` when it restarts the service.
-- **Static GTFS files** are checked in for offline development but should be
-  refreshed periodically if the lease/stop data changes.
+- **Static GTFS snapshots** are device-local runtime data and are not checked in.
+  Provisioning must complete an initial refresh before the sign or emulator can read
+  stop, route, and trip metadata.
 - **No automated tests**; expect manual verification.  Unit tests may be added in
   the future under `tests/` if automated CI is desired.
 - Wi‑Fi AP password is hard‑coded in setup script (`SetupYourSign`).  Change if

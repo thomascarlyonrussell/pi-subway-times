@@ -5,8 +5,9 @@ import pathlib
 import shutil
 import subprocess
 import zipfile
+from unittest import mock
 
-from gtfs_refresh import GtfsSource, GtfsStaticRefresher
+from gtfs_refresh import GtfsSource, GtfsStaticRefresher, get_active_data_dir
 
 
 REQUIRED_CONTENT = {
@@ -50,9 +51,7 @@ def run_dev_validation():
         root = temp_dir
         source_dir = root / "sources"
         state_dir = root / "state"
-        data_dir = root / "data"
         source_dir.mkdir(parents=True, exist_ok=True)
-        data_dir.mkdir(parents=True, exist_ok=True)
 
         base_zip = source_dir / "base.zip"
         supplemented_zip = source_dir / "supplemented.zip"
@@ -60,7 +59,6 @@ def run_dev_validation():
         _build_archive(supplemented_zip, "AABBCC")
 
         refresher = GtfsStaticRefresher(
-            data_dir=data_dir,
             state_dir=state_dir,
             sources=[
                 GtfsSource("base", f"file://{base_zip.as_posix()}"),
@@ -71,6 +69,14 @@ def run_dev_validation():
             snapshot_retention_count=4,
             service_action="none",
         )
+
+        with mock.patch("gtfs_refresh._state_files", return_value={"current": state_dir / "current.json"}):
+            try:
+                get_active_data_dir()
+            except RuntimeError as exc:
+                assert "No active GTFS static snapshot" in str(exc)
+            else:
+                raise AssertionError("Missing active snapshot should fail clearly")
 
         # Monkey patch requests download by copying local zip files.
         original_download = refresher._download_source
@@ -114,6 +120,7 @@ def run_dev_validation():
                 "second_promotion_success",
                 "rollback_success",
                 "failure_preserves_previous_dataset",
+                "missing_active_snapshot_fails_clearly",
             ],
         }
     finally:

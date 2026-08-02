@@ -58,7 +58,6 @@ EOF
 
 # Enable and start the service
 sudo systemctl enable subway-sign
-sudo systemctl start subway-sign
 
 # Configure systemd service and timer for static GTFS refresh
 echo "Setting up GTFS static refresh service and timer..."
@@ -178,11 +177,11 @@ cat <<EOF | sudo tee /etc/matrix_config_default.json
         "sources": [
             [
                 "base",
-                "https://web.mta.info/developers/data/nyct/subway/google_transit.zip"
+                "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip"
             ],
             [
                 "supplemented",
-                "https://web.mta.info/developers/data/nyct/subway/google_transit_supplemented.zip"
+                "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_supplemented.zip"
             ]
         ]
     }
@@ -195,6 +194,14 @@ if [ ! -f "/etc/matrix_config.json" ]; then
 fi
 sudo chown subwaysign:subwaysign /etc/matrix_config_default.json /etc/matrix_config.json
 sudo chmod 664 /etc/matrix_config_default.json /etc/matrix_config.json
+
+echo "Downloading initial GTFS static snapshot..."
+if ! sudo /usr/bin/python3 "$PROJECT_DIR/python/gtfs_refresh.py" --force --skip-service-action; then
+    echo "Initial GTFS refresh failed. The display service was not started."
+    exit 1
+fi
+
+sudo systemctl start subway-sign
 
 # === UPDATE AND CONFIGURE RGB MATRIX BONNET ===
 echo "Installing and configuring Adafruit RGB Matrix Bonnet..."

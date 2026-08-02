@@ -21,6 +21,11 @@ DEV_CANONICAL_CONFIG_PATH = REPO_ROOT / "setup" / "matrix_config.json"
 DEV_DEFAULT_CONFIG_PATH = REPO_ROOT / "setup" / "matrix_config_default.json"
 LEGACY_TOML_CONFIG_PATH = REPO_ROOT / "settings.toml"
 
+RETIRED_GTFS_STATIC_SOURCE_URLS = {
+    "https://web.mta.info/developers/data/nyct/subway/google_transit.zip": "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip",
+    "https://web.mta.info/developers/data/nyct/subway/google_transit_supplemented.zip": "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_supplemented.zip",
+}
+
 
 DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
     "wifi": {
@@ -79,11 +84,11 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
         "sources": [
             [
                 "base",
-                "https://web.mta.info/developers/data/nyct/subway/google_transit.zip",
+                "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip",
             ],
             [
                 "supplemented",
-                "https://web.mta.info/developers/data/nyct/subway/google_transit_supplemented.zip",
+                "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_supplemented.zip",
             ],
         ],
     },
@@ -197,7 +202,9 @@ def _normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:
     for source in refresh.get("sources", []):
         if not isinstance(source, (list, tuple)) or len(source) != 2:
             continue
-        normalized_sources.append([str(source[0]).strip(), str(source[1]).strip()])
+        source_name = str(source[0]).strip()
+        source_url = str(source[1]).strip()
+        normalized_sources.append([source_name, RETIRED_GTFS_STATIC_SOURCE_URLS.get(source_url, source_url)])
     if normalized_sources:
         refresh["sources"] = normalized_sources
     else:

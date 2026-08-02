@@ -6,6 +6,10 @@ TBD - created by archiving change automate-gtfs-static-data-refresh. Update Purp
 ### Requirement: Static GTFS Data Must Be Refreshable Automatically
 The system MUST support scheduled retrieval of static GTFS datasets from configured source endpoints.
 
+#### Scenario: Initial installation refresh
+- **WHEN** provisioning completes configuration on a new device
+- **THEN** it successfully promotes an initial static snapshot before starting the display service
+
 #### Scenario: Scheduled refresh run
 - **WHEN** refresh schedule triggers
 - **THEN** the system downloads candidate GTFS static data to a staging location

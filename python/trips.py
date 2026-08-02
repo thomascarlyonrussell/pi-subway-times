@@ -13,7 +13,6 @@ from gtfs_refresh import get_active_data_dir, get_lookup_data_dirs
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-DATA_DIR = REPO_ROOT / "data"
 
 
 def _to_csv_tokens(value):
@@ -43,13 +42,17 @@ def _stop_direction(stop_id):
     return ""
 
 
+def _trip_direction_token(trip_id):
+    return str(trip_id or "").rsplit(".", 1)[-1].strip().upper()
+
+
 def _read_csv(path):
     with path.open("r", newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
 
 
 def _load_discovery_catalog():
-    active_dir = get_active_data_dir(DATA_DIR)
+    active_dir = get_active_data_dir()
     routes_rows = _read_csv(active_dir / "routes.txt")
     stops_rows = _read_csv(active_dir / "stops.txt")
     trips_rows = _read_csv(active_dir / "trips.txt")
@@ -206,7 +209,7 @@ class Trips:
         self.last_fetch_error = ""
 
     def _lookup_dirs(self):
-        return get_lookup_data_dirs(DATA_DIR)
+        return get_lookup_data_dirs()
 
     def _load_direction_mapping_rules(self) -> List[Dict[str, Any]]:
         rules = []
@@ -344,12 +347,45 @@ class Trips:
             with open(lookup_dir / "trips.txt", "r", newline="", encoding="utf-8") as file:
                 reader = csv.DictReader(file)
                 for row in reader:
-                    route_id = row.get("route_id", "").strip()
+                    route_id = row.get("route_id", "").strip().upper()
                     if not self.routes or route_id in self.routes:
                         trip_id = row.get("trip_id", "").strip()
                         trip_headsign = row.get("trip_headsign", "").strip()
-                        trip_directions[trip_id.split(".")[-1]] = trip_headsign
+                        trip_directions[(route_id, _trip_direction_token(trip_id))] = trip_headsign
         return trip_directions
+
+    def _resolve_trip_direction(self, realtime_trip_id, trip_directions, route_id=""):
+        trip_token = _trip_direction_token(realtime_trip_id)
+        normalized_route_id = str(route_id or "").strip().upper()
+        if normalized_route_id:
+            static_headsign = trip_directions.get((normalized_route_id, trip_token))
+        else:
+            static_headsign = trip_directions.get(trip_token)
+        if static_headsign:
+            return static_headsign
+
+        if trip_token in {"N", "S", "E", "W"}:
+            candidate_headsigns = set()
+            for static_key, headsign in trip_directions.items():
+                if isinstance(static_key, tuple):
+                    static_route_id, static_token = static_key
+                    if normalized_route_id and static_route_id != normalized_route_id:
+                        continue
+                else:
+                    static_token = static_key
+                if static_token.startswith(trip_token) and headsign:
+                    candidate_headsigns.add(headsign)
+            if len(candidate_headsigns) == 1:
+                return next(iter(candidate_headsigns))
+
+            return {
+                "N": "Northbound",
+                "S": "Southbound",
+                "E": "Eastbound",
+                "W": "Westbound",
+            }[trip_token]
+
+        return "Direction unavailable"
 
     def get_route_colors(self):
         route_colors = {}
@@ -395,7 +431,11 @@ class Trips:
                     if stop_time.stop_id not in stations:
                         continue
                     arrival_time = datetime.fromtimestamp(stop_time.arrival.time)
-                    default_direction = trip_directions.get(entity_trip.trip.trip_id.split(".")[-1], "Unknown")
+                    default_direction = self._resolve_trip_direction(
+                        entity_trip.trip.trip_id,
+                        trip_directions,
+                        route_id,
+                    )
                     trip = {
                         "line": route_id,
                         "arrival_time": arrival_time.strftime("%H:%M"),
