@@ -348,25 +348,34 @@ class Trips:
             with open(lookup_dir / "trips.txt", "r", newline="", encoding="utf-8") as file:
                 reader = csv.DictReader(file)
                 for row in reader:
-                    route_id = row.get("route_id", "").strip()
+                    route_id = row.get("route_id", "").strip().upper()
                     if not self.routes or route_id in self.routes:
                         trip_id = row.get("trip_id", "").strip()
                         trip_headsign = row.get("trip_headsign", "").strip()
-                        trip_directions[_trip_direction_token(trip_id)] = trip_headsign
+                        trip_directions[(route_id, _trip_direction_token(trip_id))] = trip_headsign
         return trip_directions
 
-    def _resolve_trip_direction(self, realtime_trip_id, trip_directions):
+    def _resolve_trip_direction(self, realtime_trip_id, trip_directions, route_id=""):
         trip_token = _trip_direction_token(realtime_trip_id)
-        static_headsign = trip_directions.get(trip_token)
+        normalized_route_id = str(route_id or "").strip().upper()
+        if normalized_route_id:
+            static_headsign = trip_directions.get((normalized_route_id, trip_token))
+        else:
+            static_headsign = trip_directions.get(trip_token)
         if static_headsign:
             return static_headsign
 
         if trip_token in {"N", "S", "E", "W"}:
-            candidate_headsigns = {
-                headsign
-                for static_token, headsign in trip_directions.items()
-                if static_token.startswith(trip_token) and headsign
-            }
+            candidate_headsigns = set()
+            for static_key, headsign in trip_directions.items():
+                if isinstance(static_key, tuple):
+                    static_route_id, static_token = static_key
+                    if normalized_route_id and static_route_id != normalized_route_id:
+                        continue
+                else:
+                    static_token = static_key
+                if static_token.startswith(trip_token) and headsign:
+                    candidate_headsigns.add(headsign)
             if len(candidate_headsigns) == 1:
                 return next(iter(candidate_headsigns))
 
@@ -423,7 +432,11 @@ class Trips:
                     if stop_time.stop_id not in stations:
                         continue
                     arrival_time = datetime.fromtimestamp(stop_time.arrival.time)
-                    default_direction = self._resolve_trip_direction(entity_trip.trip.trip_id, trip_directions)
+                    default_direction = self._resolve_trip_direction(
+                        entity_trip.trip.trip_id,
+                        trip_directions,
+                        route_id,
+                    )
                     trip = {
                         "line": route_id,
                         "arrival_time": arrival_time.strftime("%H:%M"),

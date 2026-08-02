@@ -62,6 +62,22 @@ class TripPipelineAdaptiveValidation(unittest.TestCase):
         self.assertEqual(ambiguous, "Northbound")
         self.assertEqual(unavailable, "Direction unavailable")
 
+    def test_direction_resolution_scopes_transition_suffixes_to_the_route(self):
+        cfg = self._build_config()
+        trips = Trips("7 Av", ["N"], ["F", "G"], config=cfg)
+        static_directions = {
+            ("F", "N07R"): "Jamaica-179 St",
+            ("G", "N09X002"): "Bedford-Nostrand Avs",
+        }
+
+        resolved = trips._resolve_trip_direction(  # pylint: disable=protected-access
+            "112650_F..N",
+            static_directions,
+            "F",
+        )
+
+        self.assertEqual(resolved, "Jamaica-179 St")
+
     def test_feed_group_resolution_covers_all_selected_route_families(self):
         cfg = self._build_config()
         routes = ["1", "A", "F", "G", "J", "L", "N", "SI"]
