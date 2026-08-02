@@ -43,6 +43,10 @@ def _stop_direction(stop_id):
     return ""
 
 
+def _trip_direction_token(trip_id):
+    return str(trip_id or "").rsplit(".", 1)[-1].strip().upper()
+
+
 def _read_csv(path):
     with path.open("r", newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
@@ -348,8 +352,32 @@ class Trips:
                     if not self.routes or route_id in self.routes:
                         trip_id = row.get("trip_id", "").strip()
                         trip_headsign = row.get("trip_headsign", "").strip()
-                        trip_directions[trip_id.split(".")[-1]] = trip_headsign
+                        trip_directions[_trip_direction_token(trip_id)] = trip_headsign
         return trip_directions
+
+    def _resolve_trip_direction(self, realtime_trip_id, trip_directions):
+        trip_token = _trip_direction_token(realtime_trip_id)
+        static_headsign = trip_directions.get(trip_token)
+        if static_headsign:
+            return static_headsign
+
+        if trip_token in {"N", "S", "E", "W"}:
+            candidate_headsigns = {
+                headsign
+                for static_token, headsign in trip_directions.items()
+                if static_token.startswith(trip_token) and headsign
+            }
+            if len(candidate_headsigns) == 1:
+                return next(iter(candidate_headsigns))
+
+            return {
+                "N": "Northbound",
+                "S": "Southbound",
+                "E": "Eastbound",
+                "W": "Westbound",
+            }[trip_token]
+
+        return "Direction unavailable"
 
     def get_route_colors(self):
         route_colors = {}
@@ -395,7 +423,7 @@ class Trips:
                     if stop_time.stop_id not in stations:
                         continue
                     arrival_time = datetime.fromtimestamp(stop_time.arrival.time)
-                    default_direction = trip_directions.get(entity_trip.trip.trip_id.split(".")[-1], "Unknown")
+                    default_direction = self._resolve_trip_direction(entity_trip.trip.trip_id, trip_directions)
                     trip = {
                         "line": route_id,
                         "arrival_time": arrival_time.strftime("%H:%M"),

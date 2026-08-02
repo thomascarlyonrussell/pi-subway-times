@@ -54,8 +54,8 @@ KEY_FIELDS_BY_FILE = {
 }
 
 DEFAULT_SOURCES = (
-    ("base", "https://web.mta.info/developers/data/nyct/subway/google_transit.zip"),
-    ("supplemented", "https://web.mta.info/developers/data/nyct/subway/google_transit_supplemented.zip"),
+    ("base", "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip"),
+    ("supplemented", "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_supplemented.zip"),
 )
 
 
@@ -172,6 +172,10 @@ def _copy_tree(source: pathlib.Path, destination: pathlib.Path) -> None:
 
 def _run_service_action(action: str) -> subprocess.CompletedProcess:
     command = ["systemctl", action, "subway-sign"]
+    if os.name == "nt":
+        message = "Skipped subway-sign service action because systemd is unavailable on Windows."
+        LOG.info(message)
+        return subprocess.CompletedProcess(command, returncode=0, stdout="", stderr=message)
     result = subprocess.run(command, capture_output=True, text=True, check=False)
     if result.returncode == 0:
         return result

@@ -41,6 +41,27 @@ class TripPipelineAdaptiveValidation(unittest.TestCase):
         fallback = trips._apply_direction_mapping("F", "D14S", "Uptown")  # pylint: disable=protected-access
         self.assertEqual(fallback, "Uptown")
 
+    def test_direction_resolution_handles_realtime_schedule_transition_ids(self):
+        cfg = self._build_config()
+        trips = Trips("7 Av", ["N"], ["F"], config=cfg)
+        static_directions = {
+            "N07R": "Jamaica-179 St",
+            "N20R": "Jamaica-179 St",
+            "S07R": "Coney Island-Stillwell Av",
+        }
+
+        exact = trips._resolve_trip_direction("ASP26GEN..N07R", static_directions)  # pylint: disable=protected-access
+        transition = trips._resolve_trip_direction("111450_F..N", static_directions)  # pylint: disable=protected-access
+        ambiguous = trips._resolve_trip_direction(  # pylint: disable=protected-access
+            "111450_F..N", {"N07R": "Jamaica-179 St", "N20R": "Forest Hills-71 Av"}
+        )
+        unavailable = trips._resolve_trip_direction("unmapped-trip", static_directions)  # pylint: disable=protected-access
+
+        self.assertEqual(exact, "Jamaica-179 St")
+        self.assertEqual(transition, "Jamaica-179 St")
+        self.assertEqual(ambiguous, "Northbound")
+        self.assertEqual(unavailable, "Direction unavailable")
+
     def test_feed_group_resolution_covers_all_selected_route_families(self):
         cfg = self._build_config()
         routes = ["1", "A", "F", "G", "J", "L", "N", "SI"]
