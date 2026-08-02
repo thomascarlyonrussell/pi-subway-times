@@ -129,6 +129,22 @@ Run full checks on Raspberry Pi (includes service status checks):
 python3 python/validate_config_flow.py --with-services
 ```
 
+### Console Emulator
+
+On a development machine, preview the sign's logical arrival rows without Raspberry Pi LED hardware, root access, or a systemd service:
+
+```bash
+python3 python/console_emulator.py
+```
+
+Use `Ctrl + C` to stop it. The emulator loads the same runtime configuration as the sign. To test another canonical JSON configuration without changing the system configuration, set `MATRIX_CONFIG_PATH` before launch:
+
+```bash
+MATRIX_CONFIG_PATH=/path/to/matrix_config.json python3 python/console_emulator.py
+```
+
+The emulator requests live MTA data through the production trip pipeline, so it needs network access, current static GTFS files, and the Python dependencies in `requirements.txt`. It displays logical route, direction, arrival, refresh, and error state only; it does not reproduce LED pixels, fonts, colors, symbols, GPIO behavior, or hardware refresh timing.
+
 ### Static GTFS Refresh
 
 The project now supports static GTFS refresh with dual-source merge:
