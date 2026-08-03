@@ -19,10 +19,10 @@ The system MUST support scheduled retrieval of static GTFS datasets from configu
 - **THEN** the system retrieves both base and supplemented subway archives before validation and promotion
 
 ### Requirement: Candidate Data Must Be Validated Before Activation
-The system MUST validate dataset completeness and basic integrity before replacing active data files.
+The system MUST validate dataset completeness, compact discovery integrity, and basic lookup-file integrity before replacing active data files.
 
 #### Scenario: Validation success and promotion
-- **WHEN** staged dataset passes validation checks
+- **WHEN** staged dataset passes validation
 - **THEN** it is promoted atomically to active dataset path
 
 #### Scenario: Validation failure
@@ -39,4 +39,18 @@ The system MUST retain a rollback dataset that can be restored if activated data
 #### Scenario: Schedule transition overlap
 - **WHEN** static refresh activates new schedules
 - **THEN** previous snapshot remains available during a transition window to mitigate static and realtime mismatch
+
+### Requirement: Promoted Snapshots Include Compact Discovery Data
+The system SHALL generate `discovery_catalog.json` in every promoted GTFS snapshot with route metadata and stop-to-route/direction data required by configuration discovery.
+
+#### Scenario: Candidate promotion
+- **WHEN** a candidate GTFS refresh passes validation
+- **THEN** its snapshot SHALL contain a valid discovery catalog before `current.json` is updated
+
+### Requirement: Promoted Snapshots Exclude Unused Large Source Files
+The system SHALL not retain `stop_times.txt` or `shapes.txt` in a promoted GTFS snapshot.
+
+#### Scenario: Successful refresh
+- **WHEN** GTFS refresh promotes a snapshot
+- **THEN** the snapshot SHALL retain runtime lookup files and its discovery catalog but SHALL not contain `stop_times.txt` or `shapes.txt`
 

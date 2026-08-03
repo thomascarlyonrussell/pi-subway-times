@@ -4,10 +4,16 @@ import json
 import pathlib
 import shutil
 import subprocess
+import sys
 import zipfile
 from unittest import mock
 
-from gtfs_refresh import GtfsSource, GtfsStaticRefresher, get_active_data_dir
+from gtfs_refresh import DISCOVERY_CATALOG_FILE, GtfsSource, GtfsStaticRefresher, get_active_data_dir
+
+
+PYTHON_DIR = pathlib.Path(__file__).resolve().parent
+if str(PYTHON_DIR) not in sys.path:
+    sys.path.insert(0, str(PYTHON_DIR))
 
 
 REQUIRED_CONTENT = {
@@ -17,6 +23,14 @@ REQUIRED_CONTENT = {
     "stops.txt": [["stop_id", "stop_name"], ["D14N", "7 Av"]],
     "stop_times.txt": [["trip_id", "arrival_time", "departure_time", "stop_id", "stop_sequence"], ["trip.1", "08:00:00", "08:00:00", "D14N", "1"]],
 }
+
+
+class StatusRecorder:
+    def __init__(self):
+        self.events = []
+
+    def update(self, phase, completed=0, total=0, detail=""):
+        self.events.append((phase, completed, total, detail))
 
 
 def _write_csv(path: pathlib.Path, rows):
@@ -69,6 +83,8 @@ def run_dev_validation():
             snapshot_retention_count=4,
             service_action="none",
         )
+        status_recorder = StatusRecorder()
+        refresher.status_renderer = status_recorder
 
         with mock.patch("gtfs_refresh._state_files", return_value={"current": state_dir / "current.json"}):
             try:
@@ -112,6 +128,23 @@ def run_dev_validation():
                 "route_color": "AABBCC",
             }
         ], "Supplemented GTFS rows should take precedence over base rows"
+        snapshot_dir = state_dir / "snapshots" / first["dataset_id"]
+        with (snapshot_dir / DISCOVERY_CATALOG_FILE).open("r", encoding="utf-8") as handle:
+            catalog = json.load(handle)
+        assert catalog["routes"][0]["route_color"] == "AABBCC", "Catalog should preserve supplemented route metadata"
+        assert catalog["stops"] == [
+            {"stop_name": "7 Av", "stop_ids": ["D14N"], "route_ids": ["F"], "directions": ["N"]}
+        ], "Catalog should preserve route and direction discovery data"
+        assert not (snapshot_dir / "stop_times.txt").exists(), "Snapshots should omit unused stop_times.txt"
+        assert not (snapshot_dir / "shapes.txt").exists(), "Snapshots should omit unused shapes.txt"
+        with mock.patch("gtfs_refresh._state_files", return_value={"current": state_dir / "current.json"}):
+            from trips import get_discoverable_routes, get_discoverable_stops
+
+            assert get_discoverable_routes()[0]["route_color"] == "AABBCC"
+            assert get_discoverable_stops(["F"], ["N"])[0]["stop_name"] == "7 Av"
+
+            phases = {event[0] for event in status_recorder.events}
+            assert {"setup", "stations", "finalize", "ready"}.issubset(phases), "Refresh should publish setup status phases"
 
         _build_archive(supplemented_zip, "00FF00")
         second = refresher.refresh(force=True, dry_run=False)
@@ -132,6 +165,10 @@ def run_dev_validation():
                 "rollback_success",
                 "failure_preserves_previous_dataset",
                 "missing_active_snapshot_fails_clearly",
+                "discovery_catalog_preserves_supplement_precedence",
+                "configuration_discovery_reads_compact_catalog",
+                "refresh_publishes_bootstrap_status_phases",
+                "promoted_snapshot_omits_unused_large_files",
             ],
         }
     finally:

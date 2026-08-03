@@ -1,6 +1,7 @@
 import argparse
 import csv
 import hashlib
+import io
 import json
 import logging
 import os
@@ -29,6 +30,7 @@ LOG_FILE_FALLBACK = REPO_ROOT / "setup" / "subway_sign.log"
 CURRENT_STATE_FILE = "current.json"
 PREVIOUS_STATE_FILE = "previous.json"
 SNAPSHOTS_DIR_NAME = "snapshots"
+DISCOVERY_CATALOG_FILE = "discovery_catalog.json"
 DOWNLOAD_PROGRESS_BYTES = 1024 * 1024
 MERGE_PROGRESS_ROWS = 100000
 SQLITE_BATCH_SIZE = 10000
@@ -41,8 +43,8 @@ REQUIRED_FILES = {
     "routes.txt",
     "trips.txt",
     "stops.txt",
-    "stop_times.txt",
 }
+EXCLUDED_SNAPSHOT_FILES = {"shapes.txt", "stop_times.txt"}
 
 KEY_FIELDS_BY_FILE = {
     "agency.txt": ("agency_id",),
@@ -139,6 +141,13 @@ def _stable_row_key(row: Dict[str, str], key_fields: Sequence[str]) -> str:
         return "|".join(values)
     serialized = json.dumps(row, sort_keys=True)
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _iter_archive_csv_rows(archive_path: pathlib.Path, file_name: str):
+    with zipfile.ZipFile(archive_path, "r") as archive:
+        with archive.open(file_name, "r") as binary_handle:
+            text_handle = io.TextIOWrapper(binary_handle, encoding="utf-8", newline="")
+            yield from csv.DictReader(text_handle)
 
 
 def _merge_csv(base_file: pathlib.Path, supplement_file: pathlib.Path, output_file: pathlib.Path, key_fields: Sequence[str]) -> None:
@@ -252,6 +261,7 @@ class GtfsStaticRefresher:
         snapshot_retention_count: int,
         service_action: str,
         alert_command: str = "",
+        status_renderer=None,
     ):
         self.state_dir = state_dir
         self.sources = list(sources)
@@ -260,10 +270,19 @@ class GtfsStaticRefresher:
         self.snapshot_retention_count = snapshot_retention_count
         self.service_action = service_action
         self.alert_command = alert_command
+        self.status_renderer = status_renderer
 
         self.snapshots_dir = self.state_dir / SNAPSHOTS_DIR_NAME
         self.current_file = self.state_dir / CURRENT_STATE_FILE
         self.previous_file = self.state_dir / PREVIOUS_STATE_FILE
+
+    def _status(self, phase: str, completed: int = 0, total: int = 0, detail: str = "") -> None:
+        if self.status_renderer is not None:
+            try:
+                self.status_renderer.update(phase, completed, total, detail)
+            except Exception as exc:
+                LOG.warning("Bootstrap status renderer disabled: %s", exc)
+                self.status_renderer = None
 
     @classmethod
     def from_config(cls, config: Optional[Dict] = None) -> "GtfsStaticRefresher":
@@ -290,12 +309,14 @@ class GtfsStaticRefresher:
         with requests.get(source.url, timeout=self.timeout_sec, stream=True) as response:
             response.raise_for_status()
             content_length = int(response.headers.get("content-length", 0))
+            self._status("download", 0, content_length, source.name)
             with zip_path.open("wb") as handle:
                 for chunk in response.iter_content(chunk_size=1024 * 1024):
                     if not chunk:
                         continue
                     handle.write(chunk)
                     downloaded_bytes += len(chunk)
+                    self._status("download", downloaded_bytes, content_length, source.name)
                     if downloaded_bytes - last_reported_bytes >= DOWNLOAD_PROGRESS_BYTES:
                         if content_length:
                             LOG.info(
@@ -321,8 +342,14 @@ class GtfsStaticRefresher:
         extract_dir.mkdir(parents=True, exist_ok=True)
         extraction_started_at = time.monotonic()
         LOG.info("Extracting GTFS archive %s", source.name)
+        self._status("unpack", 0, 0, source.name)
         with zipfile.ZipFile(zip_path, "r") as archive:
-            archive.extractall(extract_dir)
+            members = [
+                entry
+                for entry in archive.infolist()
+                if pathlib.PurePosixPath(entry.filename).name not in EXCLUDED_SNAPSHOT_FILES
+            ]
+            archive.extractall(extract_dir, members)
         LOG.info("Finished extracting GTFS archive %s in %.1f seconds", source.name, time.monotonic() - extraction_started_at)
 
         return {
@@ -348,6 +375,97 @@ class GtfsStaticRefresher:
             if file_path.stat().st_size == 0:
                 raise RuntimeError(f"GTFS file has no data rows: {file_name}")
 
+        catalog = _load_json(dataset_dir / DISCOVERY_CATALOG_FILE)
+        if not catalog or not isinstance(catalog.get("routes"), list) or not isinstance(catalog.get("stops"), list):
+            raise RuntimeError("GTFS discovery catalog is missing or invalid")
+
+    def _build_discovery_catalog(
+        self,
+        base_archive: pathlib.Path,
+        supplement_archive: pathlib.Path,
+        snapshot_dir: pathlib.Path,
+    ) -> None:
+        LOG.info("Building compact GTFS discovery catalog")
+        self._status("stations", 0, 0, "routes")
+        trip_to_route: Dict[str, str] = {}
+        for archive_path in (base_archive, supplement_archive):
+            for row in _iter_archive_csv_rows(archive_path, "trips.txt"):
+                trip_id = row.get("trip_id", "").strip()
+                route_id = row.get("route_id", "").strip().upper()
+                if trip_id and route_id:
+                    trip_to_route[trip_id] = route_id
+
+        route_options = []
+        known_routes = set()
+        with (snapshot_dir / "routes.txt").open("r", encoding="utf-8", newline="") as handle:
+            for row in csv.DictReader(handle):
+                route_id = row.get("route_id", "").strip().upper()
+                if not route_id:
+                    continue
+                known_routes.add(route_id)
+                route_options.append(
+                    {
+                        "route_id": route_id,
+                        "route_short_name": row.get("route_short_name", "").strip(),
+                        "route_long_name": row.get("route_long_name", "").strip(),
+                        "route_color": row.get("route_color", "").strip().upper() or "FFFFFF",
+                    }
+                )
+        route_options.sort(key=lambda item: item["route_id"])
+
+        stop_to_routes: Dict[str, set] = {}
+        for archive_path in (supplement_archive, base_archive):
+            source_name = archive_path.stem
+            LOG.info("Scanning %s stop times for discovery catalog", source_name)
+            self._status("stations", 0, 0, source_name)
+            row_count = 0
+            for row in _iter_archive_csv_rows(archive_path, "stop_times.txt"):
+                trip_id = row.get("trip_id", "").strip()
+                stop_id = row.get("stop_id", "").strip()
+                route_id = trip_to_route.get(trip_id)
+                if stop_id and route_id:
+                    stop_to_routes.setdefault(stop_id, set()).add(route_id)
+                row_count += 1
+                if row_count % MERGE_PROGRESS_ROWS == 0:
+                    LOG.info("Scanned %s stop times from %s", f"{row_count:,}", source_name)
+                    self._status("stations", row_count, 0, f"{source_name[:4]} {row_count // 1000}K")
+
+        stops_by_name: Dict[str, Dict] = {}
+        with (snapshot_dir / "stops.txt").open("r", encoding="utf-8", newline="") as handle:
+            for row in csv.DictReader(handle):
+                stop_id = row.get("stop_id", "").strip()
+                stop_name = row.get("stop_name", "").strip()
+                route_ids = sorted(route for route in stop_to_routes.get(stop_id, set()) if route in known_routes)
+                if not stop_id or not stop_name or not route_ids:
+                    continue
+
+                stop_key = stop_name.lower()
+                stop = stops_by_name.setdefault(
+                    stop_key,
+                    {"stop_name": stop_name, "stop_ids": set(), "route_ids": set(), "directions": set()},
+                )
+                stop["stop_ids"].add(stop_id)
+                stop["route_ids"].update(route_ids)
+                direction = stop_id[-1].upper()
+                if direction in {"N", "S", "E", "W"}:
+                    stop["directions"].add(direction)
+
+        stops = [
+            {
+                "stop_name": stop["stop_name"],
+                "stop_ids": sorted(stop["stop_ids"]),
+                "route_ids": sorted(stop["route_ids"]),
+                "directions": sorted(stop["directions"]),
+            }
+            for stop in stops_by_name.values()
+        ]
+        stops.sort(key=lambda item: item["stop_name"])
+        _save_json_atomic(
+            snapshot_dir / DISCOVERY_CATALOG_FILE,
+            {"version": 1, "generated_at_epoch": int(time.time()), "routes": route_options, "stops": stops},
+        )
+        LOG.info("Built discovery catalog with %s routes and %s stops", len(route_options), len(stops))
+
     def _merge_archives(self, base_dir: pathlib.Path, supplement_dir: pathlib.Path, output_dir: pathlib.Path) -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
         base_files = {path.name: path for path in base_dir.glob("*.txt")}
@@ -355,6 +473,8 @@ class GtfsStaticRefresher:
         all_names = sorted(set(base_files.keys()) | set(supplement_files.keys()))
 
         for file_name in all_names:
+            if file_name in EXCLUDED_SNAPSHOT_FILES:
+                continue
             base_file = base_files.get(file_name)
             supplement_file = supplement_files.get(file_name)
             output_file = output_dir / file_name
@@ -397,6 +517,7 @@ class GtfsStaticRefresher:
 
     def refresh(self, force: bool = False, dry_run: bool = False) -> Dict:
         refresh_started_at = time.monotonic()
+        self._status("setup", 0, 0, "data")
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.snapshots_dir.mkdir(parents=True, exist_ok=True)
 
@@ -421,6 +542,11 @@ class GtfsStaticRefresher:
                 pathlib.Path(by_name["supplemented"]["extract_dir"]),
                 snapshot_dir,
             )
+            self._build_discovery_catalog(
+                pathlib.Path(by_name["base"]["zip_path"]),
+                pathlib.Path(by_name["supplemented"]["zip_path"]),
+                snapshot_dir,
+            )
             LOG.info("Validating candidate snapshot %s", dataset_id)
             self._validate_dataset(snapshot_dir)
 
@@ -435,7 +561,12 @@ class GtfsStaticRefresher:
                 }
 
             LOG.info("Calculating candidate snapshot checksums for %s", dataset_id)
-            checksums = {path.name: _sha256_file(path) for path in snapshot_dir.glob("*.txt")}
+            self._status("finalize", 0, 0, "checks")
+            checksums = {
+                path.name: _sha256_file(path)
+                for path in snapshot_dir.iterdir()
+                if path.is_file() and path.name != "manifest.json"
+            }
             manifest = {
                 "dataset_id": dataset_id,
                 "created_at_epoch": int(time.time()),
@@ -478,6 +609,7 @@ class GtfsStaticRefresher:
                 dataset_id,
                 time.monotonic() - refresh_started_at,
             )
+            self._status("ready", 1, 1, "")
             return {
                 "ok": True,
                 "promoted": True,
@@ -486,6 +618,7 @@ class GtfsStaticRefresher:
                 "service": service_result,
             }
         except Exception as exc:
+            self._status("failed", 0, 0, "terminal")
             self._notify_failure(f"GTFS static refresh failed: {exc}")
             return {"ok": False, "error": str(exc), "downloads": downloaded}
         finally:

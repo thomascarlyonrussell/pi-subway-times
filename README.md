@@ -154,10 +154,18 @@ The project now supports static GTFS refresh with dual-source merge:
 Refresh state and snapshots are stored under `/var/lib/subway-sign/gtfs-static` (or `setup/gtfs_static_state` fallback in dev).
 The Pi defaults to retaining the active snapshot and one rollback snapshot. If an existing Pi configuration still sets `snapshot_retention_count` to `8`, change it to `2` in `/etc/matrix_config.json` to avoid consuming roughly 1.2 GB of SD-card storage.
 
+On first setup, or when the active snapshot is missing, `gtfs-bootstrap.service` shows `SETUP`, `DOWNLOAD`, `UNPACK`, `STATIONS`, and `FINALIZE` status on the LED matrix before the live arrival display starts. A refresh failure leaves `FAILED` visible briefly and prevents the live display from starting without data. Normal boots with a valid snapshot start arrivals directly; scheduled refreshes remain headless so they do not interrupt the sign.
+
 Manual forced refresh:
 
 ```bash
 python3 python/gtfs_refresh.py --force
+```
+
+Manual visual bootstrap, useful after intentionally removing an invalid or legacy state pointer:
+
+```bash
+sudo python3 python/gtfs_bootstrap.py --force
 ```
 
 Manual rollback to previous snapshot:
@@ -170,4 +178,5 @@ Dev validation for promotion/failure/rollback behavior:
 
 ```bash
 python3 python/validate_gtfs_refresh.py
+python3 python/validate_bootstrap_status.py
 ```

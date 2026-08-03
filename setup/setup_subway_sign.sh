@@ -26,6 +26,14 @@ fi
 echo "Installing Python dependencies..."
 pip3 install --break-system-packages -r $PROJECT_DIR/requirements.txt
 
+# === UPDATE AND CONFIGURE RGB MATRIX BONNET ===
+echo "Installing and configuring Adafruit RGB Matrix Bonnet..."
+cd $PROJECT_DIR
+if [ ! -f "rgb-matrix.sh" ]; then
+    curl -O https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/main/rgb-matrix.sh
+fi
+sudo bash rgb-matrix.sh
+
 # Setup logging
 LOG_FILE="/var/log/subway_sign.log"
 if [ ! -f "$LOG_FILE" ]; then
@@ -43,7 +51,9 @@ echo "Setting up display service..."
 cat <<EOF | sudo tee /etc/systemd/system/subway-sign.service
 [Unit]
 Description=Subway Time Sign Display
-After=network.target
+After=network-online.target gtfs-bootstrap.service
+Wants=network-online.target
+Requires=gtfs-bootstrap.service
 
 [Service]
 ExecStart=/usr/bin/python3 $PROJECT_DIR/python/main.py
@@ -58,6 +68,23 @@ EOF
 
 # Enable and start the service
 sudo systemctl enable subway-sign
+
+# Configure a conditional visual bootstrap before the live display takes the matrix.
+echo "Setting up GTFS bootstrap service..."
+cat <<EOF | sudo tee /etc/systemd/system/gtfs-bootstrap.service
+[Unit]
+Description=Bootstrap GTFS data and show setup progress when needed
+After=network-online.target
+Wants=network-online.target
+Before=subway-sign.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=$PROJECT_DIR
+ExecStart=/usr/bin/python3 $PROJECT_DIR/python/gtfs_bootstrap.py
+User=root
+Environment="PYTHONUNBUFFERED=1"
+EOF
 
 # Configure systemd service and timer for static GTFS refresh
 echo "Setting up GTFS static refresh service and timer..."
@@ -195,21 +222,8 @@ fi
 sudo chown subwaysign:subwaysign /etc/matrix_config_default.json /etc/matrix_config.json
 sudo chmod 664 /etc/matrix_config_default.json /etc/matrix_config.json
 
-echo "Downloading initial GTFS static snapshot..."
-if ! sudo /usr/bin/python3 "$PROJECT_DIR/python/gtfs_refresh.py" --force --skip-service-action; then
-    echo "Initial GTFS refresh failed. The display service was not started."
-    exit 1
-fi
-
+# Starting subway-sign runs the visual bootstrap first when no valid snapshot exists.
 sudo systemctl start subway-sign
-
-# === UPDATE AND CONFIGURE RGB MATRIX BONNET ===
-echo "Installing and configuring Adafruit RGB Matrix Bonnet..."
-cd $PROJECT_DIR
-if [ ! -f "rgb-matrix.sh" ]; then
-    curl -O https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/main/rgb-matrix.sh
-    sudo bash rgb-matrix.sh
-fi
 
 
 # Request user confirmation to reboot

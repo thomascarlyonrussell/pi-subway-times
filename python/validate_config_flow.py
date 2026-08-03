@@ -55,7 +55,7 @@ def validate_local_flow() -> List[str]:
 
     try:
         cfg = load_runtime_config()
-        assert sorted(cfg.keys()) == ["display", "feed", "wifi"]
+        assert sorted(cfg.keys()) == ["display", "feed", "gtfs_static_refresh", "wifi"]
         _print_ok("Canonical config load returns expected sections")
     except Exception as exc:  # pragma: no cover - command-line utility
         failures.append(f"canonical load failed: {exc}")

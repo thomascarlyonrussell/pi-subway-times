@@ -1,7 +1,7 @@
 import csv
+import json
 import pathlib
 import time
-from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
@@ -9,7 +9,7 @@ import requests
 from google.transit import gtfs_realtime_pb2
 
 from config import load_runtime_config
-from gtfs_refresh import get_active_data_dir, get_lookup_data_dirs
+from gtfs_refresh import DISCOVERY_CATALOG_FILE, get_active_data_dir, get_lookup_data_dirs
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -46,93 +46,18 @@ def _trip_direction_token(trip_id):
     return str(trip_id or "").rsplit(".", 1)[-1].strip().upper()
 
 
-def _read_csv(path):
-    with path.open("r", newline="", encoding="utf-8") as handle:
-        return list(csv.DictReader(handle))
-
-
 def _load_discovery_catalog():
     active_dir = get_active_data_dir()
-    routes_rows = _read_csv(active_dir / "routes.txt")
-    stops_rows = _read_csv(active_dir / "stops.txt")
-    trips_rows = _read_csv(active_dir / "trips.txt")
-    stop_times_rows = _read_csv(active_dir / "stop_times.txt")
-
-    trip_to_route = {}
-    for row in trips_rows:
-        trip_id = row.get("trip_id", "").strip()
-        route_id = row.get("route_id", "").strip().upper()
-        if trip_id and route_id:
-            trip_to_route[trip_id] = route_id
-
-    stop_to_routes = defaultdict(set)
-    for row in stop_times_rows:
-        trip_id = row.get("trip_id", "").strip()
-        stop_id = row.get("stop_id", "").strip()
-        route_id = trip_to_route.get(trip_id)
-        if stop_id and route_id:
-            stop_to_routes[stop_id].add(route_id)
-
-    route_options = []
-    known_routes = set()
-    for row in routes_rows:
-        route_id = row.get("route_id", "").strip().upper()
-        if not route_id:
-            continue
-        known_routes.add(route_id)
-        route_options.append(
-            {
-                "route_id": route_id,
-                "route_short_name": row.get("route_short_name", "").strip(),
-                "route_long_name": row.get("route_long_name", "").strip(),
-                "route_color": row.get("route_color", "").strip().upper() or "FFFFFF",
-            }
+    catalog_path = active_dir / DISCOVERY_CATALOG_FILE
+    if not catalog_path.exists():
+        raise RuntimeError(
+            "Active GTFS snapshot has no discovery catalog. Run 'python3 python/gtfs_refresh.py --force' to migrate it."
         )
-    route_options.sort(key=lambda item: item["route_id"])
-
-    stop_options = {}
-    for row in stops_rows:
-        stop_id = row.get("stop_id", "").strip()
-        stop_name = row.get("stop_name", "").strip()
-        if not stop_id or not stop_name:
-            continue
-
-        direction = _stop_direction(stop_id)
-        route_ids = sorted(route for route in stop_to_routes.get(stop_id, set()) if route in known_routes)
-        if not route_ids:
-            continue
-
-        key = stop_name.lower()
-        if key not in stop_options:
-            stop_options[key] = {
-                "stop_name": stop_name,
-                "stop_ids": set(),
-                "route_ids": set(),
-                "directions": set(),
-            }
-        stop_options[key]["stop_ids"].add(stop_id)
-        stop_options[key]["route_ids"].update(route_ids)
-        if direction:
-            stop_options[key]["directions"].add(direction)
-
-    normalized_stops = []
-    for stop in stop_options.values():
-        normalized_stops.append(
-            {
-                "stop_name": stop["stop_name"],
-                "stop_ids": sorted(stop["stop_ids"]),
-                "route_ids": sorted(stop["route_ids"]),
-                "directions": sorted(stop["directions"]),
-            }
-        )
-    normalized_stops.sort(key=lambda item: item["stop_name"])
-
-    generated_at_epoch = int(max((path.stat().st_mtime for path in active_dir.glob("*.txt")), default=0))
-    return {
-        "generated_at_epoch": generated_at_epoch,
-        "routes": route_options,
-        "stops": normalized_stops,
-    }
+    with catalog_path.open("r", encoding="utf-8") as handle:
+        catalog = json.load(handle)
+    if not isinstance(catalog.get("routes"), list) or not isinstance(catalog.get("stops"), list):
+        raise RuntimeError("Active GTFS discovery catalog is invalid. Run a GTFS refresh to rebuild it.")
+    return catalog
 
 
 def get_discoverable_routes():
