@@ -1,6 +1,7 @@
 import copy
 import pathlib
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -88,6 +89,19 @@ class TripPipelineAdaptiveValidation(unittest.TestCase):
             feed_groups,
             {"gtfs", "gtfs-ace", "gtfs-bdfm", "gtfs-g", "gtfs-jz", "gtfs-l", "gtfs-nqrw", "gtfs-si"},
         )
+
+    def test_route_colors_use_standard_gtfs_column_names(self):
+        cfg = self._build_config()
+        trips = Trips("7 Av", ["N"], ["F"], config=cfg)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            routes_path = pathlib.Path(temp_dir) / "routes.txt"
+            routes_path.write_text(
+                "route_id,agency_id,route_short_name,route_long_name,route_desc,route_type,route_url,route_color,route_text_color\n"
+                "F,MTABC,F,Queens Boulevard Local,,1,,FF6319,FFFFFF\n",
+                encoding="utf-8",
+            )
+            with mock.patch.object(trips, "_lookup_dirs", return_value=[pathlib.Path(temp_dir)]):
+                self.assertEqual(trips.get_route_colors(), {"F": "FF6319"})
 
     def test_adaptive_cadence_transitions(self):
         cfg = self._build_config()

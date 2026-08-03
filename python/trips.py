@@ -317,13 +317,19 @@ class Trips:
         lookup_dirs = self._lookup_dirs()
         for lookup_dir in reversed(lookup_dirs):
             with open(lookup_dir / "routes.txt", "r", encoding="utf-8", newline="") as file:
-                reader = csv.reader(file)
-                next(reader)  # Skip header
+                reader = csv.DictReader(file)
                 for row in reader:
-                    if not self.routes or row[1] in self.routes:
-                        route_colors[row[1]] = row[7]  # route_id and route_color
-                    else:
+                    route_id = str(row.get("route_id", "")).strip().upper()
+                    route_short_name = str(row.get("route_short_name", "")).strip().upper()
+                    route_color = str(row.get("route_color", "")).strip().upper()
+                    if not route_color:
                         continue
+                    if self.routes and route_id not in self.routes and route_short_name not in self.routes:
+                        continue
+                    if route_id:
+                        route_colors[route_id] = route_color
+                    if route_short_name:
+                        route_colors[route_short_name] = route_color
         return route_colors
 
     def get_mta_data(self, stations, trip_directions):
