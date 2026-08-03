@@ -47,6 +47,7 @@ class BootstrapStatusRenderer:
         options.chain_length = int(self.display_config["led_chain_length"])
         options.parallel = int(self.display_config["led_parallel"])
         options.hardware_mapping = self.display_config["led_hardware_mapping"]
+        options.drop_privileges = False
         self.matrix = RGBMatrix(options=options)
         self.canvas = self.matrix.CreateFrameCanvas()
 

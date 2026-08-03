@@ -84,6 +84,8 @@ options.cols = LED_COLUMNS
 options.chain_length = LED_CHAIN_LENGTH
 options.parallel = LED_PARALLEL
 options.hardware_mapping = LED_HARDWARE_MAPPING
+# The runtime reads GTFS snapshots and route assets after GPIO initialization.
+options.drop_privileges = False
 matrix = RGBMatrix(options=options)
 canvas = matrix.CreateFrameCanvas()
 
