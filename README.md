@@ -27,10 +27,15 @@ sudo ./setup_subway_sign.sh
 ```
 
 ### Update and Configure Bonnet
-1. Update the Bonnet by running the following command:
+1. For a new board or an RGB Matrix driver repair, install and run Adafruit's
+    current Python installer from a temporary virtual environment:
 ```bash
+sudo apt-get install -y python3-pip python3-venv
+python3 -m venv --system-site-packages ~/rgb-matrix-installer-env
+source ~/rgb-matrix-installer-env/bin/activate
+pip install --upgrade setuptools adafruit-python-shell click
 curl -fLO https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/main/rgb-matrix.py
-sudo /usr/bin/python3 rgb-matrix.py
+sudo -E env PATH="$PATH" python3 rgb-matrix.py
 ```
 
 The Adafruit installer changes boot and driver configuration. Do not rerun it
@@ -45,10 +50,14 @@ ssh pi@raspberrypi.local
 ```
 2. Run the program by running the following command:
 ```bash
-cd "repos/pi-subway-times"
-sudo python "pizero/src/main.py"
+cd /home/subwaysign/project
+sudo ./.rgb-matrix-installer-env/bin/python python/main.py
 ```
-2. The program will start running and display the output on the screen.
+The RGB Matrix installer places its `rgbmatrix` binding in this virtual
+environment on a fresh setup. Existing prototypes that already run the display
+with `/usr/bin/python3` can continue using their working service interpreter.
+
+3. The program will start running and display the output on the screen.
 3. Press `Ctrl + C` to stop the program.
 
 ### Setup Startup Script

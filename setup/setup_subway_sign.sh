@@ -6,7 +6,7 @@ sudo apt update && sudo apt upgrade -y
 
 # Install required packages
 echo "Installing necessary packages..."
-sudo apt install -y python3 python3-pip git hostapd dnsmasq curl certbot python3-certbot
+sudo apt install -y python3 python3-pip python3-venv git hostapd dnsmasq curl certbot python3-certbot
 
 # Set up project directory
 PROJECT_DIR="/home/subwaysign/project"
@@ -32,7 +32,11 @@ cd $PROJECT_DIR
 if [ ! -f "rgb-matrix.py" ]; then
     curl -fLO https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/main/rgb-matrix.py
 fi
-sudo /usr/bin/python3 rgb-matrix.py
+python3 -m venv --system-site-packages "$PROJECT_DIR/.rgb-matrix-installer-env"
+source "$PROJECT_DIR/.rgb-matrix-installer-env/bin/activate"
+pip install --upgrade setuptools adafruit-python-shell click
+sudo -E env PATH="$PATH" python3 rgb-matrix.py
+deactivate
 
 # Setup logging
 LOG_FILE="/var/log/subway_sign.log"
@@ -56,7 +60,7 @@ Wants=network-online.target
 Requires=gtfs-bootstrap.service
 
 [Service]
-ExecStart=/usr/bin/python3 $PROJECT_DIR/python/main.py
+ExecStart=$PROJECT_DIR/.rgb-matrix-installer-env/bin/python $PROJECT_DIR/python/main.py
 WorkingDirectory=$PROJECT_DIR
 Restart=always
 User=root
