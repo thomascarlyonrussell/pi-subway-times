@@ -70,24 +70,22 @@ def _parse_color_value(raw_color):
     except ValueError:
         return int("FFFFFF", 16)
 
-# Initialize the RGBMatrix
+# Load fonts before starting the hardware refresh thread.
+font = graphics.Font()
+font.LoadFont(str(app_dir / 'fonts' / "10-Adobe-Helvetica.bdf"))
+route_font = graphics.Font()
+route_font.LoadFont(str(app_dir / 'fonts' / "mta.bdf"))
+
+# Initialize the RGBMatrix.
 options = RGBMatrixOptions()
 options.rows = LED_ROWS
 options.cols = LED_COLUMNS
 options.chain_length = LED_CHAIN_LENGTH
 options.parallel = LED_PARALLEL
 options.hardware_mapping = LED_HARDWARE_MAPPING
-## send the options to the RGBMatrix
 matrix = RGBMatrix(options=options)
-## create a frame canvas
 canvas = matrix.CreateFrameCanvas()
 
-## Set main text font
-font = graphics.Font()
-font.LoadFont(str(app_dir / 'fonts' / "10-Adobe-Helvetica.bdf"))
-## Set route font
-route_font = graphics.Font()
-route_font.LoadFont(str(app_dir / 'fonts' / "mta.bdf"))
 route_symbol_renderer = build_route_symbol_renderer(display_config, route_font, font, logging.getLogger(__name__))
 
 # Main Loop

@@ -37,6 +37,10 @@ class BootstrapStatusRenderer:
         RGBMatrixOptions = rgbmatrix.RGBMatrixOptions
         graphics = rgbmatrix.graphics
 
+        self.graphics = graphics
+        self.font = graphics.Font()
+        self.font.LoadFont(str(self.project_root / "fonts" / "10-Adobe-Helvetica.bdf"))
+
         options = RGBMatrixOptions()
         options.rows = int(self.display_config["led_rows"])
         options.cols = int(self.display_config["led_columns"])
@@ -45,9 +49,6 @@ class BootstrapStatusRenderer:
         options.hardware_mapping = self.display_config["led_hardware_mapping"]
         self.matrix = RGBMatrix(options=options)
         self.canvas = self.matrix.CreateFrameCanvas()
-        self.graphics = graphics
-        self.font = graphics.Font()
-        self.font.LoadFont(str(self.project_root / "fonts" / "10-Adobe-Helvetica.bdf"))
 
     def update(self, phase: str, completed: int = 0, total: int = 0, detail: str = "") -> None:
         if self.matrix is None:
