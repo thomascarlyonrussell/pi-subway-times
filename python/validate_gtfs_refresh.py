@@ -101,6 +101,17 @@ def run_dev_validation():
 
         first = refresher.refresh(force=True, dry_run=False)
         assert first.get("ok"), f"First promotion failed: {first}"
+        with (state_dir / "snapshots" / first["dataset_id"] / "routes.txt").open("r", encoding="utf-8", newline="") as handle:
+            routes = list(csv.DictReader(handle))
+        assert routes == [
+            {
+                "route_id": "F",
+                "route_short_name": "F",
+                "route_long_name": "Queens Blvd",
+                "route_type": "1",
+                "route_color": "AABBCC",
+            }
+        ], "Supplemented GTFS rows should take precedence over base rows"
 
         _build_archive(supplemented_zip, "00FF00")
         second = refresher.refresh(force=True, dry_run=False)

@@ -6,6 +6,7 @@ import logging
 import os
 import pathlib
 import shutil
+import sqlite3
 import subprocess
 import tempfile
 import time
@@ -128,45 +129,40 @@ def _stable_row_key(row: Dict[str, str], key_fields: Sequence[str]) -> str:
 
 
 def _merge_csv(base_file: pathlib.Path, supplement_file: pathlib.Path, output_file: pathlib.Path, key_fields: Sequence[str]) -> None:
-    with base_file.open("r", encoding="utf-8", newline="") as handle:
-        base_reader = csv.DictReader(handle)
-        base_rows = list(base_reader)
-        base_headers = list(base_reader.fieldnames or [])
+    with base_file.open("r", encoding="utf-8", newline="") as base_handle, supplement_file.open(
+        "r", encoding="utf-8", newline=""
+    ) as supplement_handle:
+        base_reader = csv.DictReader(base_handle)
+        supplement_reader = csv.DictReader(supplement_handle)
+        headers = list(dict.fromkeys((base_reader.fieldnames or []) + (supplement_reader.fieldnames or [])))
 
-    with supplement_file.open("r", encoding="utf-8", newline="") as handle:
-        supplement_reader = csv.DictReader(handle)
-        supplement_rows = list(supplement_reader)
-        supplement_headers = list(supplement_reader.fieldnames or [])
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, database_name = tempfile.mkstemp(prefix="gtfs-merge-", suffix=".sqlite3", dir=str(output_file.parent))
+        os.close(descriptor)
+        database_path = pathlib.Path(database_name)
+        connection = sqlite3.connect(database_path)
+        try:
+            with output_file.open("w", encoding="utf-8", newline="") as output_handle:
+                connection.execute("PRAGMA journal_mode=OFF")
+                connection.execute("PRAGMA synchronous=OFF")
+                connection.execute("CREATE TABLE seen_keys (key TEXT PRIMARY KEY) WITHOUT ROWID")
 
-    headers = list(dict.fromkeys(base_headers + supplement_headers))
-
-    merged_by_key: Dict[str, Dict[str, str]] = {}
-    ordered_keys: List[str] = []
-
-    for row in base_rows:
-        key = _stable_row_key(row, key_fields)
-        if key not in merged_by_key:
-            ordered_keys.append(key)
-        merged_by_key[key] = row
-
-    for row in supplement_rows:
-        key = _stable_row_key(row, key_fields)
-        if key not in merged_by_key:
-            ordered_keys.append(key)
-        merged_by_key[key] = row
-
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    with output_file.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=headers)
-        writer.writeheader()
-        for key in ordered_keys:
-            writer.writerow(merged_by_key[key])
-
-
-def _copy_tree(source: pathlib.Path, destination: pathlib.Path) -> None:
-    destination.mkdir(parents=True, exist_ok=True)
-    for file_path in source.glob("*.txt"):
-        shutil.copy2(file_path, destination / file_path.name)
+                writer = csv.DictWriter(output_handle, fieldnames=headers)
+                writer.writeheader()
+                for row in supplement_reader:
+                    key = _stable_row_key(row, key_fields)
+                    result = connection.execute("INSERT OR IGNORE INTO seen_keys VALUES (?)", (key,))
+                    if result.rowcount:
+                        writer.writerow(row)
+                for row in base_reader:
+                    key = _stable_row_key(row, key_fields)
+                    result = connection.execute("INSERT OR IGNORE INTO seen_keys VALUES (?)", (key,))
+                    if result.rowcount:
+                        writer.writerow(row)
+                connection.commit()
+        finally:
+            connection.close()
+            database_path.unlink(missing_ok=True)
 
 
 def _run_service_action(action: str) -> subprocess.CompletedProcess:
@@ -251,8 +247,12 @@ class GtfsStaticRefresher:
                 raise RuntimeError(f"Missing required GTFS file after merge: {file_name}")
             with file_path.open("r", encoding="utf-8", newline="") as handle:
                 reader = csv.reader(handle)
-                rows = list(reader)
-            if len(rows) <= 1:
+                try:
+                    next(reader)
+                    next(reader)
+                except StopIteration:
+                    raise RuntimeError(f"GTFS file has no data rows: {file_name}")
+            if file_path.stat().st_size == 0:
                 raise RuntimeError(f"GTFS file has no data rows: {file_name}")
 
     def _merge_archives(self, base_dir: pathlib.Path, supplement_dir: pathlib.Path, output_dir: pathlib.Path) -> None:
@@ -265,6 +265,7 @@ class GtfsStaticRefresher:
             base_file = base_files.get(file_name)
             supplement_file = supplement_files.get(file_name)
             output_file = output_dir / file_name
+            LOG.info("Merging GTFS file %s", file_name)
             if base_file and supplement_file and file_name in KEY_FIELDS_BY_FILE:
                 _merge_csv(base_file, supplement_file, output_file, KEY_FIELDS_BY_FILE[file_name])
             elif supplement_file:
@@ -318,11 +319,19 @@ class GtfsStaticRefresher:
             if "base" not in by_name or "supplemented" not in by_name:
                 raise RuntimeError("Source list must include both 'base' and 'supplemented'")
 
-            merged_dir = working_dir / "merged"
-            self._merge_archives(pathlib.Path(by_name["base"]["extract_dir"]), pathlib.Path(by_name["supplemented"]["extract_dir"]), merged_dir)
-            self._validate_dataset(merged_dir)
+            dataset_id = timestamp
+            snapshot_dir = self.snapshots_dir / dataset_id
+            LOG.info("Merging GTFS archives into candidate snapshot %s", dataset_id)
+            self._merge_archives(
+                pathlib.Path(by_name["base"]["extract_dir"]),
+                pathlib.Path(by_name["supplemented"]["extract_dir"]),
+                snapshot_dir,
+            )
+            LOG.info("Validating candidate snapshot %s", dataset_id)
+            self._validate_dataset(snapshot_dir)
 
             if dry_run:
+                shutil.rmtree(snapshot_dir, ignore_errors=True)
                 return {
                     "ok": True,
                     "promoted": False,
@@ -330,10 +339,7 @@ class GtfsStaticRefresher:
                     "downloads": downloaded,
                 }
 
-            dataset_id = timestamp
-            snapshot_dir = self.snapshots_dir / dataset_id
-            _copy_tree(merged_dir, snapshot_dir)
-
+            LOG.info("Calculating candidate snapshot checksums for %s", dataset_id)
             checksums = {path.name: _sha256_file(path) for path in snapshot_dir.glob("*.txt")}
             manifest = {
                 "dataset_id": dataset_id,
