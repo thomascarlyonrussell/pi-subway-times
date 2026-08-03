@@ -4,7 +4,10 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Tuple
 
-from rgbmatrix import graphics
+try:
+    from rgbmatrix import graphics
+except ImportError:  # pragma: no cover - absent on non-Pi desktop environment
+    graphics = None
 
 from display import get_clamped_color
 
@@ -73,7 +76,8 @@ class FontRouteSymbolBackend(RouteSymbolBackend):
         return bool(_normalize_route_id(route_id))
 
     def render(self, canvas, route_id: str, x: int, baseline_y: int, color_value: int) -> None:
-        graphics.DrawText(canvas, self.font, x, baseline_y, get_clamped_color(color_value), _normalize_route_id(route_id))
+        if graphics is not None:
+            graphics.DrawText(canvas, self.font, x, baseline_y, get_clamped_color(color_value), _normalize_route_id(route_id))
 
 
 class TextRouteSymbolBackend(RouteSymbolBackend):
@@ -87,21 +91,22 @@ class TextRouteSymbolBackend(RouteSymbolBackend):
         return True
 
     def render(self, canvas, route_id: str, x: int, baseline_y: int, color_value: int) -> None:
-        graphics.DrawText(
-            canvas,
-            self.font,
-            x,
-            baseline_y,
-            get_clamped_color(color_value),
-            _fallback_label(route_id, self.max_chars),
-        )
+        if graphics is not None:
+            graphics.DrawText(
+                canvas,
+                self.font,
+                x,
+                baseline_y,
+                get_clamped_color(color_value),
+                _fallback_label(route_id, self.max_chars),
+            )
 
 
 @dataclass
 class _AssetMask:
     width: int
     height: int
-    pixels: List[Tuple[int, int]]
+    pixels: List[Tuple[int, int, int, int, int]]
 
 
 class ImageRouteSymbolBackend(RouteSymbolBackend):
@@ -170,8 +175,12 @@ class ImageRouteSymbolBackend(RouteSymbolBackend):
             pixels = []
             for x in range(width):
                 for y in range(height):
-                    if rgba.getpixel((x, y))[3] > 0:
-                        pixels.append((x, y))
+                    r, g, b, a = rgba.getpixel((x, y))
+                    if a >= 10:
+                        r_scaled = (r * a) // 255
+                        g_scaled = (g * a) // 255
+                        b_scaled = (b * a) // 255
+                        pixels.append((x, y, r_scaled, g_scaled, b_scaled))
             return _AssetMask(width=width, height=height, pixels=pixels)
 
     def _get_mask(self, route_id: str) -> Optional[_AssetMask]:
@@ -198,10 +207,7 @@ class ImageRouteSymbolBackend(RouteSymbolBackend):
             raise ValueError("Missing or invalid image symbol asset")
 
         top = baseline_y - mask.height + 1
-        red = (color_value >> 16) & 0xFF
-        green = (color_value >> 8) & 0xFF
-        blue = color_value & 0xFF
-        for px, py in mask.pixels:
+        for px, py, red, green, blue in mask.pixels:
             canvas.SetPixel(x + px, top + py, red, green, blue)
 
 
@@ -234,7 +240,8 @@ class RouteSymbolRenderer:
 
         # Final safety fallback keeps render loop alive.
         color = get_clamped_color(color_value)
-        graphics.DrawText(canvas, self._backends["text"].font, x, baseline_y, color, "--")
+        if graphics is not None:
+            graphics.DrawText(canvas, self._backends["text"].font, x, baseline_y, color, "--")
         self.last_backend = "hardcoded"
         return self.last_backend
 
