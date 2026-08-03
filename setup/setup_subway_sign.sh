@@ -29,10 +29,10 @@ pip3 install --break-system-packages -r $PROJECT_DIR/requirements.txt
 # === UPDATE AND CONFIGURE RGB MATRIX BONNET ===
 echo "Installing and configuring Adafruit RGB Matrix Bonnet..."
 cd $PROJECT_DIR
-if [ ! -f "rgb-matrix.sh" ]; then
-    curl -O https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/main/rgb-matrix.sh
+if [ ! -f "rgb-matrix.py" ]; then
+    curl -fLO https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/main/rgb-matrix.py
 fi
-sudo bash rgb-matrix.sh
+sudo /usr/bin/python3 rgb-matrix.py
 
 # Setup logging
 LOG_FILE="/var/log/subway_sign.log"

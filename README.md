@@ -29,9 +29,13 @@ sudo ./setup_subway_sign.sh
 ### Update and Configure Bonnet
 1. Update the Bonnet by running the following command:
 ```bash
-curl https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/main/rgb-matrix.sh >rgb-matrix.sh
-sudo bash rgb-matrix.sh
+curl -fLO https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/main/rgb-matrix.py
+sudo /usr/bin/python3 rgb-matrix.py
 ```
+
+The Adafruit installer changes boot and driver configuration. Do not rerun it
+on a working prototype just to update this project; use it only when setting up
+the RGB Matrix Bonnet/HAT or repairing its driver installation.
 
 
 ### Run the Program
