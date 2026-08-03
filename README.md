@@ -152,6 +152,7 @@ The project now supports static GTFS refresh with dual-source merge:
 - Supplement archive: `google_transit_supplemented.zip` (overrides base on key collisions)
 
 Refresh state and snapshots are stored under `/var/lib/subway-sign/gtfs-static` (or `setup/gtfs_static_state` fallback in dev).
+The Pi defaults to retaining the active snapshot and one rollback snapshot. If an existing Pi configuration still sets `snapshot_retention_count` to `8`, change it to `2` in `/etc/matrix_config.json` to avoid consuming roughly 1.2 GB of SD-card storage.
 
 Manual forced refresh:
 

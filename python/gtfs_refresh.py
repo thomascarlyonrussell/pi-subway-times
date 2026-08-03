@@ -29,6 +29,9 @@ LOG_FILE_FALLBACK = REPO_ROOT / "setup" / "subway_sign.log"
 CURRENT_STATE_FILE = "current.json"
 PREVIOUS_STATE_FILE = "previous.json"
 SNAPSHOTS_DIR_NAME = "snapshots"
+DOWNLOAD_PROGRESS_BYTES = 1024 * 1024
+MERGE_PROGRESS_ROWS = 100000
+SQLITE_BATCH_SIZE = 10000
 
 BASE_ARCHIVE_NAME = "google_transit.zip"
 SUPPLEMENT_ARCHIVE_NAME = "google_transit_supplemented.zip"
@@ -70,6 +73,10 @@ def _configure_logger() -> logging.Logger:
     handler = logging.FileHandler(log_target, encoding="utf-8")
     handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
     logger.addHandler(handler)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+    logger.addHandler(console_handler)
+    logger.propagate = False
     return logger
 
 
@@ -88,6 +95,12 @@ def _sha256_file(path: pathlib.Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _format_bytes(byte_count: int) -> str:
+    if byte_count < 1024 * 1024:
+        return f"{byte_count / 1024:.1f} KiB"
+    return f"{byte_count / (1024 * 1024):.1f} MiB"
 
 
 def _load_json(path: pathlib.Path) -> Optional[Dict]:
@@ -129,40 +142,92 @@ def _stable_row_key(row: Dict[str, str], key_fields: Sequence[str]) -> str:
 
 
 def _merge_csv(base_file: pathlib.Path, supplement_file: pathlib.Path, output_file: pathlib.Path, key_fields: Sequence[str]) -> None:
+    started_at = time.monotonic()
     with base_file.open("r", encoding="utf-8", newline="") as base_handle, supplement_file.open(
         "r", encoding="utf-8", newline=""
     ) as supplement_handle:
         base_reader = csv.DictReader(base_handle)
         supplement_reader = csv.DictReader(supplement_handle)
-        headers = list(dict.fromkeys((base_reader.fieldnames or []) + (supplement_reader.fieldnames or [])))
+        base_headers = list(base_reader.fieldnames or [])
+        supplement_headers = list(supplement_reader.fieldnames or [])
+        headers = list(dict.fromkeys(base_headers + supplement_headers))
+        matching_headers = base_headers == supplement_headers
 
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        descriptor, database_name = tempfile.mkstemp(prefix="gtfs-merge-", suffix=".sqlite3", dir=str(output_file.parent))
-        os.close(descriptor)
-        database_path = pathlib.Path(database_name)
-        connection = sqlite3.connect(database_path)
-        try:
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, database_name = tempfile.mkstemp(prefix="gtfs-merge-", suffix=".sqlite3", dir=str(output_file.parent))
+    os.close(descriptor)
+    database_path = pathlib.Path(database_name)
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("PRAGMA journal_mode=OFF")
+        connection.execute("PRAGMA synchronous=OFF")
+        connection.execute("PRAGMA cache_size=-8192")
+        connection.execute("CREATE TABLE seen_keys (key TEXT PRIMARY KEY) WITHOUT ROWID")
+
+        LOG.info("Indexing supplemented rows for %s", output_file.name)
+        supplement_rows = 0
+        key_batch = []
+        with supplement_file.open("r", encoding="utf-8", newline="") as supplement_handle:
+            supplement_reader = csv.DictReader(supplement_handle)
+            for row in supplement_reader:
+                key_batch.append((_stable_row_key(row, key_fields),))
+                supplement_rows += 1
+                if len(key_batch) >= SQLITE_BATCH_SIZE:
+                    connection.executemany("INSERT OR IGNORE INTO seen_keys VALUES (?)", key_batch)
+                    key_batch.clear()
+                if supplement_rows % MERGE_PROGRESS_ROWS == 0:
+                    LOG.info("Indexed %s supplemented rows for %s", f"{supplement_rows:,}", output_file.name)
+        if key_batch:
+            connection.executemany("INSERT OR IGNORE INTO seen_keys VALUES (?)", key_batch)
+        connection.commit()
+
+        if matching_headers:
+            LOG.info("Copying supplemented rows for %s", output_file.name)
+            shutil.copy2(supplement_file, output_file)
+        else:
             with output_file.open("w", encoding="utf-8", newline="") as output_handle:
-                connection.execute("PRAGMA journal_mode=OFF")
-                connection.execute("PRAGMA synchronous=OFF")
-                connection.execute("CREATE TABLE seen_keys (key TEXT PRIMARY KEY) WITHOUT ROWID")
-
                 writer = csv.DictWriter(output_handle, fieldnames=headers)
                 writer.writeheader()
-                for row in supplement_reader:
-                    key = _stable_row_key(row, key_fields)
-                    result = connection.execute("INSERT OR IGNORE INTO seen_keys VALUES (?)", (key,))
-                    if result.rowcount:
+                with supplement_file.open("r", encoding="utf-8", newline="") as supplement_handle:
+                    supplement_reader = csv.DictReader(supplement_handle)
+                    for row in supplement_reader:
                         writer.writerow(row)
+
+        with output_file.open("a", encoding="utf-8", newline="") as output_handle:
+            writer = csv.DictWriter(output_handle, fieldnames=headers)
+
+            LOG.info("Writing base-only rows for %s", output_file.name)
+            base_rows = 0
+            base_only_rows = 0
+            with base_file.open("r", encoding="utf-8", newline="") as base_handle:
+                base_reader = csv.DictReader(base_handle)
                 for row in base_reader:
+                    base_rows += 1
                     key = _stable_row_key(row, key_fields)
-                    result = connection.execute("INSERT OR IGNORE INTO seen_keys VALUES (?)", (key,))
-                    if result.rowcount:
+                    if connection.execute("SELECT 1 FROM seen_keys WHERE key = ?", (key,)).fetchone():
+                        pass
+                    else:
+                        connection.execute("INSERT INTO seen_keys VALUES (?)", (key,))
                         writer.writerow(row)
-                connection.commit()
-        finally:
-            connection.close()
-            database_path.unlink(missing_ok=True)
+                        base_only_rows += 1
+                    if base_rows % MERGE_PROGRESS_ROWS == 0:
+                        LOG.info(
+                            "Processed %s base rows for %s (%s retained)",
+                            f"{base_rows:,}",
+                            output_file.name,
+                            f"{base_only_rows:,}",
+                        )
+
+        LOG.info(
+            "Merged %s: %s supplemented rows and %s base-only rows",
+            output_file.name,
+            f"{supplement_rows:,}",
+            f"{base_only_rows:,}",
+        )
+        LOG.info("Finished merging %s in %.1f seconds", output_file.name, time.monotonic() - started_at)
+    finally:
+        connection.close()
+        database_path.unlink(missing_ok=True)
 
 
 def _run_service_action(action: str) -> subprocess.CompletedProcess:
@@ -211,26 +276,54 @@ class GtfsStaticRefresher:
             sources=sources,
             timeout_sec=int(refresh_cfg.get("request_timeout_sec", 30)),
             transition_window_hours=int(refresh_cfg.get("transition_window_hours", 168)),
-            snapshot_retention_count=int(refresh_cfg.get("snapshot_retention_count", 8)),
+            snapshot_retention_count=int(refresh_cfg.get("snapshot_retention_count", 2)),
             service_action=str(refresh_cfg.get("service_action", "restart")).strip().lower(),
             alert_command=str(refresh_cfg.get("alert_command", "")).strip(),
         )
 
     def _download_source(self, source: GtfsSource, target_dir: pathlib.Path) -> Dict[str, str]:
+        download_started_at = time.monotonic()
         LOG.info("Downloading GTFS archive '%s' from %s", source.name, source.url)
-        response = requests.get(source.url, timeout=self.timeout_sec)
-        response.raise_for_status()
-
         zip_path = target_dir / f"{source.name}.zip"
-        zip_path.write_bytes(response.content)
+        downloaded_bytes = 0
+        last_reported_bytes = 0
+        with requests.get(source.url, timeout=self.timeout_sec, stream=True) as response:
+            response.raise_for_status()
+            content_length = int(response.headers.get("content-length", 0))
+            with zip_path.open("wb") as handle:
+                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                    if not chunk:
+                        continue
+                    handle.write(chunk)
+                    downloaded_bytes += len(chunk)
+                    if downloaded_bytes - last_reported_bytes >= DOWNLOAD_PROGRESS_BYTES:
+                        if content_length:
+                            LOG.info(
+                                "Downloaded %s / %s for %s",
+                                _format_bytes(downloaded_bytes),
+                                _format_bytes(content_length),
+                                source.name,
+                            )
+                        else:
+                            LOG.info("Downloaded %s for %s", _format_bytes(downloaded_bytes), source.name)
+                        last_reported_bytes = downloaded_bytes
         if zip_path.stat().st_size == 0:
             raise RuntimeError(f"Downloaded empty archive: {source.url}")
+        LOG.info(
+            "Finished downloading %s (%s) in %.1f seconds",
+            source.name,
+            _format_bytes(downloaded_bytes),
+            time.monotonic() - download_started_at,
+        )
 
         checksum = _sha256_file(zip_path)
         extract_dir = target_dir / source.name
         extract_dir.mkdir(parents=True, exist_ok=True)
+        extraction_started_at = time.monotonic()
+        LOG.info("Extracting GTFS archive %s", source.name)
         with zipfile.ZipFile(zip_path, "r") as archive:
             archive.extractall(extract_dir)
+        LOG.info("Finished extracting GTFS archive %s in %.1f seconds", source.name, time.monotonic() - extraction_started_at)
 
         return {
             "name": source.name,
@@ -303,6 +396,7 @@ class GtfsStaticRefresher:
             subprocess.run(self.alert_command, shell=True, check=False, capture_output=True, text=True)
 
     def refresh(self, force: bool = False, dry_run: bool = False) -> Dict:
+        refresh_started_at = time.monotonic()
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.snapshots_dir.mkdir(parents=True, exist_ok=True)
 
@@ -332,6 +426,7 @@ class GtfsStaticRefresher:
 
             if dry_run:
                 shutil.rmtree(snapshot_dir, ignore_errors=True)
+                LOG.info("GTFS static refresh dry run completed in %.1f seconds", time.monotonic() - refresh_started_at)
                 return {
                     "ok": True,
                     "promoted": False,
@@ -378,7 +473,11 @@ class GtfsStaticRefresher:
                 if run_result.returncode != 0:
                     raise RuntimeError(f"Failed to {self.service_action} subway-sign after promotion")
 
-            LOG.info("GTFS static refresh promoted dataset %s", dataset_id)
+            LOG.info(
+                "GTFS static refresh promoted dataset %s in %.1f seconds",
+                dataset_id,
+                time.monotonic() - refresh_started_at,
+            )
             return {
                 "ok": True,
                 "promoted": True,

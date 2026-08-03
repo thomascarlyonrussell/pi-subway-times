@@ -171,7 +171,7 @@ cat <<EOF | sudo tee /etc/matrix_config_default.json
         "enabled": true,
         "request_timeout_sec": 30,
         "transition_window_hours": 168,
-        "snapshot_retention_count": 8,
+        "snapshot_retention_count": 2,
         "service_action": "restart",
         "alert_command": "",
         "sources": [
