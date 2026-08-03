@@ -37,6 +37,7 @@ source "$PROJECT_DIR/.rgb-matrix-installer-env/bin/activate"
 pip install --upgrade setuptools adafruit-python-shell click
 sudo -E env PATH="$PATH" python3 rgb-matrix.py
 deactivate
+cd "$PROJECT_DIR"
 
 # Setup logging
 LOG_FILE="/var/log/subway_sign.log"
