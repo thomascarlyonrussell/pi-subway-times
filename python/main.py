@@ -75,6 +75,7 @@ font = graphics.Font()
 font.LoadFont(str(app_dir / 'fonts' / "10-Adobe-Helvetica.bdf"))
 route_font = graphics.Font()
 route_font.LoadFont(str(app_dir / 'fonts' / "mta.bdf"))
+route_symbol_renderer = build_route_symbol_renderer(display_config, route_font, font, logging.getLogger(__name__))
 
 # Initialize the RGBMatrix.
 options = RGBMatrixOptions()
@@ -85,8 +86,6 @@ options.parallel = LED_PARALLEL
 options.hardware_mapping = LED_HARDWARE_MAPPING
 matrix = RGBMatrix(options=options)
 canvas = matrix.CreateFrameCanvas()
-
-route_symbol_renderer = build_route_symbol_renderer(display_config, route_font, font, logging.getLogger(__name__))
 
 # Main Loop
 start_time = time.monotonic()
