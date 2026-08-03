@@ -46,7 +46,7 @@ Description=Subway Time Sign Display
 After=network.target
 
 [Service]
-ExecStart=/bin/bash -c 'sudo -u subwaysign python3 $PROJECT_DIR/python/main.py'
+ExecStart=/usr/bin/python3 $PROJECT_DIR/python/main.py
 WorkingDirectory=$PROJECT_DIR
 Restart=always
 User=root
