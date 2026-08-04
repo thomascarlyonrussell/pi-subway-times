@@ -96,7 +96,7 @@ class BootstrapStatusValidation(unittest.TestCase):
             renderer.close()
             self.assertIsNone(renderer.matrix)
             self.assertIsNone(renderer.canvas)
-            self.assertEqual(matrix.swap_count, 3)
+            self.assertEqual(matrix.swap_count, 4)
 
     def test_status_updates_are_throttled(self):
         fake_module = types.SimpleNamespace(

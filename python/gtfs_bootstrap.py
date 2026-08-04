@@ -1,5 +1,7 @@
 import argparse
 import json
+import logging
+import sys
 import time
 
 from bootstrap_status import BootstrapStatusRenderer
@@ -19,6 +21,7 @@ def has_valid_snapshot() -> bool:
 
 
 def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     parser = argparse.ArgumentParser(description="Visually bootstrap GTFS data when no active snapshot exists.")
     parser.add_argument("--force", action="store_true", help="Refresh even when an active snapshot exists.")
     args = parser.parse_args()
@@ -29,6 +32,11 @@ def main() -> int:
 
     config = load_runtime_config()
     renderer = BootstrapStatusRenderer(config["display"])
+    try:
+        renderer.start()
+    except Exception as exc:
+        logging.error("Failed to initialize matrix for bootstrap status: %s", exc, exc_info=True)
+
     refresher = GtfsStaticRefresher.from_config(config=config)
     refresher.service_action = "none"
     refresher.status_renderer = renderer

@@ -39,7 +39,10 @@ class BootstrapStatusRenderer:
 
         self.graphics = graphics
         self.font = graphics.Font()
-        self.font.LoadFont(str(self.project_root / "fonts" / "10-Adobe-Helvetica.bdf"))
+        font_path = self.project_root / "fonts" / "10-Adobe-Helvetica.bdf"
+        if not font_path.exists():
+            raise FileNotFoundError(f"Bootstrap status font not found at {font_path}")
+        self.font.LoadFont(str(font_path))
 
         options = RGBMatrixOptions()
         options.rows = int(self.display_config["led_rows"])
@@ -86,6 +89,12 @@ class BootstrapStatusRenderer:
         self.last_render_key = render_key
 
     def close(self) -> None:
+        if self.canvas is not None and self.matrix is not None:
+            try:
+                self.canvas.Clear()
+                self.canvas = self.matrix.SwapOnVSync(self.canvas)
+            except Exception:
+                pass
         self.canvas = None
         self.matrix = None
         self.last_render_key = None
