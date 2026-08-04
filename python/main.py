@@ -35,7 +35,7 @@ LED_COLUMNS = display_config["led_columns"]
 LED_CHAIN_LENGTH = display_config["led_chain_length"]
 LED_PARALLEL = display_config["led_parallel"]
 LED_HARDWARE_MAPPING = display_config["led_hardware_mapping"]
-LED_PWM_SLOWDOWN = int(display_config.get("led_pwm_slowdown", 2))
+LED_GPIO_SLOWDOWN = int(display_config.get("led_gpio_slowdown", display_config.get("led_pwm_slowdown", 2)))
 LINE_DIRECTION_MAX_LENGTH = display_config["line_direction_max_length"]
 
 MTA_ROUTES = [route.strip() for route in feed_config["mta_routes"].split(",") if route.strip()]
@@ -85,7 +85,8 @@ options.cols = LED_COLUMNS
 options.chain_length = LED_CHAIN_LENGTH
 options.parallel = LED_PARALLEL
 options.hardware_mapping = LED_HARDWARE_MAPPING
-options.pwm_slowdown = LED_PWM_SLOWDOWN
+if hasattr(options, "gpio_slowdown"):
+    options.gpio_slowdown = LED_GPIO_SLOWDOWN
 # The runtime reads GTFS snapshots and route assets after GPIO initialization.
 options.drop_privileges = False
 matrix = RGBMatrix(options=options)

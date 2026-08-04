@@ -68,8 +68,8 @@
             <label>LED Hardware Mapping:</label>
             <input type="text" name="led_hardware_mapping" value="{{ config.display.led_hardware_mapping }}"><br>
 
-            <label>LED PWM Slowdown:</label>
-            <input type="number" name="led_pwm_slowdown" value="{{ config.display.led_pwm_slowdown if config.display.led_pwm_slowdown is defined else 2 }}"><br>
+            <label>LED GPIO Slowdown:</label>
+            <input type="number" name="led_gpio_slowdown" value="{{ config.display.led_gpio_slowdown if config.display.led_gpio_slowdown is defined else 2 }}"><br>
 
             <label>Line Direction Max Length:</label>
             <input type="number" name="line_direction_max_length" value="{{ config.display.line_direction_max_length }}"><br>
