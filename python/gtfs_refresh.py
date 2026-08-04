@@ -281,7 +281,7 @@ class GtfsStaticRefresher:
             try:
                 self.status_renderer.update(phase, completed, total, detail)
             except Exception as exc:
-                LOG.warning("Bootstrap status renderer disabled: %s", exc)
+                LOG.exception("Bootstrap status renderer disabled: %s", exc)
                 self.status_renderer = None
 
     @classmethod

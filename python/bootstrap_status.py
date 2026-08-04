@@ -50,6 +50,8 @@ class BootstrapStatusRenderer:
         gpio_slowdown = int(self.display_config.get("led_gpio_slowdown", self.display_config.get("led_pwm_slowdown", 2)))
         if hasattr(options, "gpio_slowdown"):
             options.gpio_slowdown = gpio_slowdown
+        if hasattr(options, "brightness"):
+            options.brightness = int(self.display_config.get("brightness", 100))
         options.drop_privileges = False
         self.matrix = RGBMatrix(options=options)
         self.canvas = self.matrix.CreateFrameCanvas()
@@ -62,7 +64,14 @@ class BootstrapStatusRenderer:
         progress = 0 if total <= 0 else max(0, min(64, int((completed / float(total)) * 64)))
         render_key = (phase, detail_text, progress)
         now = time.monotonic()
-        if render_key == self.last_render_key or (now - self.last_render_at) < 0.5:
+        if render_key == self.last_render_key:
+            return
+        if (
+            self.last_render_key is not None
+            and phase == self.last_render_key[0]
+            and detail_text == self.last_render_key[1]
+            and (now - self.last_render_at) < 0.1
+        ):
             return
         color = self.graphics.Color(255, 255, 255)
         phase_color = self.graphics.Color(0, 200, 255) if phase != "failed" else self.graphics.Color(255, 64, 64)
