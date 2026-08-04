@@ -53,6 +53,7 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
         "led_chain_length": 1,
         "led_parallel": 1,
         "led_hardware_mapping": "adafruit-hat",
+        "led_pwm_slowdown": 2,
         "line_direction_max_length": 10,
         "route_symbol_backends": "image,font,text",
         "route_symbol_assets_dir": "assets/route_symbols",
@@ -109,6 +110,7 @@ LEGACY_TOML_TO_CANONICAL = {
     "LED_CHAIN_LENGTH": ("display", "led_chain_length"),
     "LED_PARALLEL": ("display", "led_parallel"),
     "LED_HARDWARE_MAPPING": ("display", "led_hardware_mapping"),
+    "LED_PWM_SLOWDOWN": ("display", "led_pwm_slowdown"),
     "LINE_DIRECTION_MAX_LENGTH": ("display", "line_direction_max_length"),
     "MTA_FEED_BASE_URL": ("feed", "mta_feed_base_url"),
 }
@@ -168,6 +170,7 @@ def _normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:
         "led_columns",
         "led_chain_length",
         "led_parallel",
+        "led_pwm_slowdown",
         "line_direction_max_length",
         "route_symbol_max_asset_px",
         "route_symbol_cache_limit",
@@ -306,6 +309,8 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("display.maximum_arrival_minutes must be >= minimum_arrival_minutes")
     if display["led_rows"] <= 0 or display["led_columns"] <= 0:
         raise ValueError("display.led_rows and display.led_columns must be > 0")
+    if display["led_pwm_slowdown"] < 0:
+        raise ValueError("display.led_pwm_slowdown must be >= 0")
     if display["line_direction_max_length"] <= 0:
         raise ValueError("display.line_direction_max_length must be > 0")
     if display["route_symbol_max_asset_px"] <= 0:

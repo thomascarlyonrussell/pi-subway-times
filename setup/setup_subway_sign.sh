@@ -192,6 +192,7 @@ cat <<EOF | sudo tee /etc/matrix_config_default.json
         "led_chain_length": 1,
         "led_parallel": 1,
         "led_hardware_mapping": "adafruit-hat",
+        "led_pwm_slowdown": 2,
         "line_direction_max_length": 10
     },
     "feed": {
