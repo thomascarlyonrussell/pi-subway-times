@@ -35,7 +35,9 @@ class BootstrapStatusRenderer:
         rgbmatrix = importlib.import_module("rgbmatrix")
         RGBMatrix = rgbmatrix.RGBMatrix
         RGBMatrixOptions = rgbmatrix.RGBMatrixOptions
-        graphics = rgbmatrix.graphics
+        graphics = getattr(rgbmatrix, "graphics", None)
+        if graphics is None:
+            graphics = importlib.import_module("rgbmatrix.graphics")
 
         self.graphics = graphics
         self.font = graphics.Font()

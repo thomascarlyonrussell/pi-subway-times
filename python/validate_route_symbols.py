@@ -82,7 +82,7 @@ class RouteSymbolsValidation(unittest.TestCase):
         )
 
     @unittest.skipIf(Image is None, "Pillow not installed")
-    def test_image_backend_renders_black_glyph_for_n_train(self):
+    def test_image_backend_renders_transparent_cutout_for_n_train(self):
         backend = ImageRouteSymbolBackend(
             assets_dir=self.assets_dir,
             max_asset_px=10,
@@ -95,14 +95,34 @@ class RouteSymbolsValidation(unittest.TestCase):
         canvas = MockCanvas()
         backend.render(canvas, "N", x=0, baseline_y=9, color_value=0xFCCC0A)
 
-        # N symbol has yellow bullet background and black N glyph
+        # N symbol has yellow bullet background and transparent N glyph cutout
+        self.assertNotIn((3, 2), canvas.pixels, "N symbol cutout pixel at (3,2) should be transparent/omitted")
+        yellow_pixels = [
+            color for pos, color in canvas.pixels.items() if color[0] > 200 and color[1] > 150
+        ]
+        self.assertGreater(len(yellow_pixels), 0, "N symbol must contain yellow bullet background pixels")
+
+    @unittest.skipIf(Image is None, "Pillow not installed")
+    def test_image_backend_renders_black_glyph_for_w_train(self):
+        backend = ImageRouteSymbolBackend(
+            assets_dir=self.assets_dir,
+            max_asset_px=10,
+            cache_limit=10,
+            route_symbol_aliases=DEFAULT_ROUTE_SYMBOL_ALIASES,
+            logger=self.logger,
+        )
+        self.assertTrue(backend.can_render("W"))
+
+        canvas = MockCanvas()
+        backend.render(canvas, "W", x=0, baseline_y=9, color_value=0xFCCC0A)
+
         black_glyph_pixels = [
             color for pos, color in canvas.pixels.items() if color[0] < 60 and color[1] < 60 and color[2] < 60
         ]
         self.assertGreater(
             len(black_glyph_pixels),
             0,
-            "N symbol must contain dark/black glyph pixels for the 'N' cutout",
+            "W symbol must contain dark/black glyph pixels",
         )
 
     @unittest.skipIf(Image is None, "Pillow not installed")
