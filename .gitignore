@@ -3,6 +3,7 @@ __pycache__*
 .github
 
 # Local runtime state and generated validation artifacts.
+.tmp/
 python/.validation/
 setup/.tmp/
 setup/gtfs_static_state/
