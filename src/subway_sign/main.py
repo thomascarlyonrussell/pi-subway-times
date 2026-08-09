@@ -2,6 +2,7 @@ import pathlib
 import os
 import time
 import logging
+from concurrent.futures import Future, ThreadPoolExecutor
 
 LOG_FILE = "/var/log/subway_sign.log"
 logging.basicConfig(
@@ -127,19 +128,34 @@ def main() -> int:
     LOG.info("Display startup: initial MTA fetch completed with %s arrival rows", len(TRIP_JSON or []))
     current_refresh_delay = max(1, int(getattr(trips, "last_refresh_interval_sec", REFRESH_TIME_DELAY)))
     bottom_row_index = 2
+    refresh_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mta-refresh")
+    refresh_future: Future = None
 
     try:
         while True:
             now = time.monotonic()
             elapsed_since_fetch = now - start_time
             stale_elapsed = (now - last_success_time) if last_success_time else float("inf")
-            if elapsed_since_fetch > current_refresh_delay or stale_elapsed > STALE_DATA_GRACE_SEC:
-                latest_trips = trips.fetch_trip_data()
-                start_time = time.monotonic()
-                current_refresh_delay = max(1, int(getattr(trips, "last_refresh_interval_sec", REFRESH_TIME_DELAY)))
-                if latest_trips:
-                    TRIP_JSON = latest_trips
-                    last_success_time = time.monotonic()
+            refresh_completed = False
+            if refresh_future and refresh_future.done():
+                try:
+                    latest_trips = refresh_future.result()
+                except Exception:
+                    LOG.exception("MTA refresh failed")
+                else:
+                    current_refresh_delay = max(1, int(getattr(trips, "last_refresh_interval_sec", REFRESH_TIME_DELAY)))
+                    if latest_trips:
+                        TRIP_JSON = latest_trips
+                        last_success_time = time.monotonic()
+                refresh_future = None
+                start_time = now
+                refresh_completed = True
+
+            if not refresh_completed and not refresh_future and (
+                elapsed_since_fetch > current_refresh_delay or stale_elapsed > STALE_DATA_GRACE_SEC
+            ):
+                refresh_future = refresh_executor.submit(trips.fetch_trip_data)
+                start_time = now
 
             render_rows = _normalize_for_render(TRIP_JSON)
             if (time.monotonic() - rotate_time) > ROTATE_TRIP_DELAY:
@@ -183,6 +199,8 @@ def main() -> int:
     except Exception as e:
         LOG.exception("Display Error: %s", e)
         raise
+    finally:
+        refresh_executor.shutdown(wait=False, cancel_futures=True)
 
 
 if __name__ == "__main__":
