@@ -30,6 +30,10 @@ The display runtime MUST render route symbols through a route-symbol rendering s
 - **WHEN** selected backend lacks requested symbol
 - **THEN** fallback backend or textual route rendering is used without crashing render loop
 
+#### Scenario: Station direction string pixel width truncation
+- **WHEN** station direction string pixel width exceeds `LINE_DIRECTION_MAX_PIXELS` (default 40)
+- **THEN** string is truncated so total rendered character width stays strictly under or equal to 40 pixels (and does not exceed `LINE_DIRECTION_MAX_LENGTH` if specified)
+
 ### Requirement: Progress Bar Reflects Time to Next Data Poll
 The display runtime SHALL draw a bottom-row horizontal progress bar representing remaining time until next trip data fetch.
 

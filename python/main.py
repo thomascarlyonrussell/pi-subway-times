@@ -15,7 +15,7 @@ rgb_dir = app_dir.parent / 'rpi-rgb-led-matrix' / 'bindings' / 'python'
 os.sys.path.append(str(rgb_dir))
 
 from rgbmatrix import RGBMatrix, RGBMatrixOptions, graphics
-from display import get_clamped_color
+from display import get_clamped_color, truncate_to_pixel_width
 from config import load_runtime_config
 from route_symbols import build_route_symbol_renderer
 from trips import Trips
@@ -37,6 +37,7 @@ LED_PARALLEL = display_config["led_parallel"]
 LED_HARDWARE_MAPPING = display_config["led_hardware_mapping"]
 LED_GPIO_SLOWDOWN = int(display_config.get("led_gpio_slowdown", display_config.get("led_pwm_slowdown", 2)))
 LINE_DIRECTION_MAX_LENGTH = display_config["line_direction_max_length"]
+LINE_DIRECTION_MAX_PIXELS = display_config.get("line_direction_max_pixels", 40)
 
 MTA_ROUTES = [route.strip() for route in feed_config["mta_routes"].split(",") if route.strip()]
 MTA_STOP = feed_config["mta_stop"]
@@ -124,21 +125,24 @@ try:
         color_value = _parse_color_value(render_rows[0].get("route_color"))
         color = get_clamped_color(color_value)
         route_symbol_renderer.render(canvas, render_rows[0].get("line", ""), 0, 10, color_value)
-        graphics.DrawText(canvas, font, 11, 9, color, render_rows[0]["direction"][:LINE_DIRECTION_MAX_LENGTH])
+        dir_text_0 = truncate_to_pixel_width(font, render_rows[0]["direction"], max_pixels=LINE_DIRECTION_MAX_PIXELS, max_chars=LINE_DIRECTION_MAX_LENGTH)
+        graphics.DrawText(canvas, font, 11, 9, color, dir_text_0)
         graphics.DrawText(canvas, font, 55, 9, color, str(render_rows[0]["minutes_until_arrival"]))
 
         # Second Row
         color_value = _parse_color_value(render_rows[1].get("route_color"))
         color = get_clamped_color(color_value)
         route_symbol_renderer.render(canvas, render_rows[1].get("line", ""), 0, 20, color_value)
-        graphics.DrawText(canvas, font, 11, 19, color, render_rows[1]["direction"][:LINE_DIRECTION_MAX_LENGTH])
+        dir_text_1 = truncate_to_pixel_width(font, render_rows[1]["direction"], max_pixels=LINE_DIRECTION_MAX_PIXELS, max_chars=LINE_DIRECTION_MAX_LENGTH)
+        graphics.DrawText(canvas, font, 11, 19, color, dir_text_1)
         graphics.DrawText(canvas, font, 55, 19, color, str(render_rows[1]["minutes_until_arrival"]))
 
         # Third Row
         color_value = _parse_color_value(render_rows[bottom_row_index].get("route_color"))
         color = get_clamped_color(color_value)
         route_symbol_renderer.render(canvas, render_rows[bottom_row_index].get("line", ""), 0, 30, color_value)
-        graphics.DrawText(canvas, font, 11, 29, color, render_rows[bottom_row_index]["direction"][:LINE_DIRECTION_MAX_LENGTH])
+        dir_text_2 = truncate_to_pixel_width(font, render_rows[bottom_row_index]["direction"], max_pixels=LINE_DIRECTION_MAX_PIXELS, max_chars=LINE_DIRECTION_MAX_LENGTH)
+        graphics.DrawText(canvas, font, 11, 29, color, dir_text_2)
         graphics.DrawText(canvas, font, 55, 29, color, str(render_rows[bottom_row_index]["minutes_until_arrival"]))
 
         elapsed_time = time.monotonic() - start_time

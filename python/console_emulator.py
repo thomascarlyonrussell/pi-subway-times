@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 
 from config import load_runtime_config
+from display import truncate_to_pixel_width
 
 
 def placeholder_rows():
@@ -116,9 +117,18 @@ class ConsoleEmulator:
             f"Station: {self.station} | Routes: {', '.join(self.routes) or '--'} | Directions: {', '.join(self.directions) or '--'}",
             "",
         ]
+        display_cfg = self.config.get("display", {})
+        max_pixels = display_cfg.get("line_direction_max_pixels", 40)
+        max_chars = display_cfg.get("line_direction_max_length", 10)
         for index, row in enumerate(rows, start=1):
+            dir_text = truncate_to_pixel_width(
+                None,
+                str(row.get("direction", "No Data")),
+                max_pixels=max_pixels,
+                max_chars=max_chars,
+            )
             lines.append(
-                f"{index}: {str(row.get('line', '--')):<4} {str(row.get('direction', 'No Data')):<24} {str(row.get('minutes_until_arrival', '--')):>3} min"
+                f"{index}: {str(row.get('line', '--')):<4} {dir_text:<24} {str(row.get('minutes_until_arrival', '--')):>3} min"
             )
         lines.extend(
             [

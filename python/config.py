@@ -55,6 +55,7 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
         "led_hardware_mapping": "adafruit-hat",
         "led_gpio_slowdown": 2,
         "line_direction_max_length": 10,
+        "line_direction_max_pixels": 40,
         "route_symbol_backends": "image,font,text",
         "route_symbol_assets_dir": "assets/route_symbols",
         "route_symbol_max_asset_px": 10,
@@ -112,6 +113,7 @@ LEGACY_TOML_TO_CANONICAL = {
     "LED_HARDWARE_MAPPING": ("display", "led_hardware_mapping"),
     "LED_GPIO_SLOWDOWN": ("display", "led_gpio_slowdown"),
     "LINE_DIRECTION_MAX_LENGTH": ("display", "line_direction_max_length"),
+    "LINE_DIRECTION_MAX_PIXELS": ("display", "line_direction_max_pixels"),
     "MTA_FEED_BASE_URL": ("feed", "mta_feed_base_url"),
 }
 
@@ -172,6 +174,7 @@ def _normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:
         "led_parallel",
         "led_gpio_slowdown",
         "line_direction_max_length",
+        "line_direction_max_pixels",
         "route_symbol_max_asset_px",
         "route_symbol_cache_limit",
         "route_symbol_text_max_chars",
@@ -313,6 +316,8 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("display.led_gpio_slowdown must be >= 0")
     if display["line_direction_max_length"] <= 0:
         raise ValueError("display.line_direction_max_length must be > 0")
+    if display["line_direction_max_pixels"] <= 0:
+        raise ValueError("display.line_direction_max_pixels must be > 0")
     if display["route_symbol_max_asset_px"] <= 0:
         raise ValueError("display.route_symbol_max_asset_px must be > 0")
     if display["route_symbol_cache_limit"] <= 0:

@@ -206,6 +206,7 @@ def _apply_form(config, form_data):
     config["display"]["led_hardware_mapping"] = form_data.get("led_hardware_mapping", config["display"]["led_hardware_mapping"])
     config["display"]["led_gpio_slowdown"] = _to_int(form_data, "led_gpio_slowdown", config["display"].get("led_gpio_slowdown", 2))
     config["display"]["line_direction_max_length"] = _to_int(form_data, "line_direction_max_length", config["display"]["line_direction_max_length"])
+    config["display"]["line_direction_max_pixels"] = _to_int(form_data, "line_direction_max_pixels", config["display"].get("line_direction_max_pixels", 40))
 
     config["feed"]["mta_routes"] = _extract_routes(form_data, config)
     config["feed"]["mta_stop"] = form_data.get("mta_stop", config["feed"]["mta_stop"]).strip()

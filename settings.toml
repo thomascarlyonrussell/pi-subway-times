@@ -26,6 +26,7 @@ LED_PARALLEL = 1
 LED_HARDWARE_MAPPING = "adafruit-hat"
 LED_GPIO_SLOWDOWN = 2
 LINE_DIRECTION_MAX_LENGTH = 10
+LINE_DIRECTION_MAX_PIXELS = 40
 
 ## API
 MTA_FEED_BASE_URL = "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2F"
