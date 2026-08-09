@@ -7,7 +7,6 @@ from unittest import mock
 
 from subway_sign.route_symbols import (
     DEFAULT_ROUTE_SYMBOL_ALIASES,
-    FontRouteSymbolBackend,
     ImageRouteSymbolBackend,
     RouteSymbolRenderer,
     TextRouteSymbolBackend,
@@ -156,16 +155,15 @@ class RouteSymbolsValidation(unittest.TestCase):
         self.assertTrue(backend.can_render("FX"))
         self.assertEqual(backend._resolve_symbol_key("FX"), "FD")
 
-    def test_renderer_fallback_sequence(self):
-        font_backend = mock.Mock(spec=FontRouteSymbolBackend)
-        font_backend.name = "font"
-        font_backend.can_render.return_value = False
-
+    def test_renderer_falls_back_to_text_when_image_is_unavailable(self):
+        image_backend = mock.Mock(spec=ImageRouteSymbolBackend)
+        image_backend.name = "image"
+        image_backend.can_render.return_value = False
         text_backend = mock.Mock(spec=TextRouteSymbolBackend)
         text_backend.name = "text"
         text_backend.can_render.return_value = True
 
-        renderer = RouteSymbolRenderer([font_backend, text_backend], logger=self.logger)
+        renderer = RouteSymbolRenderer([image_backend, text_backend], logger=self.logger)
         used_backend = renderer.render(None, "F", x=0, baseline_y=9, color_value=0xFF6319)
 
         self.assertEqual(used_backend, "text")

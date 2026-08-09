@@ -18,7 +18,7 @@ except ImportError:  # pragma: no cover - optional dependency for image backend
 
 
 SUPPORTED_IMAGE_EXTENSIONS = (".png",)
-DEFAULT_BACKEND_ORDER = ("image", "font", "text")
+DEFAULT_BACKEND_ORDER = ("image", "text")
 DEFAULT_ROUTE_SYMBOL_ALIASES = {
     "5X": "5D",
     "6X": "6D",
@@ -64,20 +64,6 @@ class RouteSymbolBackend:
 
     def render(self, canvas, route_id: str, x: int, baseline_y: int, color_value: int) -> None:
         raise NotImplementedError
-
-
-class FontRouteSymbolBackend(RouteSymbolBackend):
-    name = "font"
-
-    def __init__(self, font):
-        self.font = font
-
-    def can_render(self, route_id: str) -> bool:
-        return bool(_normalize_route_id(route_id))
-
-    def render(self, canvas, route_id: str, x: int, baseline_y: int, color_value: int) -> None:
-        if graphics is not None:
-            graphics.DrawText(canvas, self.font, x, baseline_y, get_clamped_color(color_value), _normalize_route_id(route_id))
 
 
 class TextRouteSymbolBackend(RouteSymbolBackend):
@@ -246,7 +232,7 @@ class RouteSymbolRenderer:
         return self.last_backend
 
 
-def build_route_symbol_renderer(display_config: dict, route_font, text_font, logger: Optional[logging.Logger] = None):
+def build_route_symbol_renderer(display_config: dict, text_font, logger: Optional[logging.Logger] = None):
     logger = logger or logging.getLogger(__name__)
     backend_order = parse_backend_order(display_config.get("route_symbol_backends", DEFAULT_BACKEND_ORDER))
     max_asset_px = int(display_config.get("route_symbol_max_asset_px", 10))
@@ -258,7 +244,6 @@ def build_route_symbol_renderer(display_config: dict, route_font, text_font, log
         assets_dir = pathlib.Path(__file__).resolve().parents[2] / assets_dir
 
     backends: Dict[str, RouteSymbolBackend] = {
-        "font": FontRouteSymbolBackend(route_font),
         "text": TextRouteSymbolBackend(text_font, text_max_chars),
     }
     backends["image"] = ImageRouteSymbolBackend(

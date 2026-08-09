@@ -56,7 +56,7 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
         "led_gpio_slowdown": 2,
         "line_direction_max_length": 10,
         "line_direction_max_pixels": 42,
-        "route_symbol_backends": "image,font,text",
+        "route_symbol_backends": "image,text",
         "route_symbol_assets_dir": "assets/route_symbols",
         "route_symbol_max_asset_px": 10,
         "route_symbol_cache_limit": 128,
@@ -263,7 +263,7 @@ def _parse_route_symbol_backends(value: Any) -> List[str]:
     for token in tokens:
         if token not in deduplicated:
             deduplicated.append(token)
-    return deduplicated or ["image", "font", "text"]
+    return deduplicated or ["image", "text"]
 
 
 def _normalize_route_symbol_aliases(value: Any) -> Dict[str, str]:
@@ -328,7 +328,7 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         if not alias_key or not alias_target:
             raise ValueError("display.route_symbol_aliases entries must define non-empty alias and target")
     backends = _parse_route_symbol_backends(display.get("route_symbol_backends"))
-    supported_backends = {"image", "font", "text"}
+    supported_backends = {"image", "text"}
     if not backends:
         raise ValueError("display.route_symbol_backends must define at least one backend")
     unsupported = [backend for backend in backends if backend not in supported_backends]

@@ -35,7 +35,6 @@ subway-gtfs-refresh = "subway_sign.gtfs_refresh:main"
 subway-gtfs-bootstrap = "subway_sign.gtfs_bootstrap:main"
 subway-splash = "subway_sign.splash:main"
 subway-emulator = "subway_sign.console_emulator:main"
-subway-vendor-symbols = "subway_sign.vendor_route_symbols:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/subway_sign"]

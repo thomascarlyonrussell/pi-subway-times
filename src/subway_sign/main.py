@@ -105,9 +105,7 @@ def main() -> int:
 
     LOG.info("Display startup: loading GTFS indexes")
     trips = Trips(MTA_STOP, MTA_DIRECTIONS, MTA_ROUTES, config=config)
-    route_font = graphics.Font()
-    route_font.LoadFont(str(app_dir / 'fonts' / "mta.bdf"))
-    route_symbol_renderer = build_route_symbol_renderer(display_config, route_font, font, LOG)
+    route_symbol_renderer = build_route_symbol_renderer(display_config, font, LOG)
 
     # Show a feed-specific status before the first live MTA request.
     canvas.Clear()

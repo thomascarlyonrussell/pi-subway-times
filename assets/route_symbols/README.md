@@ -11,13 +11,17 @@ This directory stores vendored local PNG assets used by the image route-symbol b
 ## Import from `louh/mta-subway-bullets`
 
 1. Download or clone `https://github.com/louh/mta-subway-bullets` manually on your machine.
-2. Run:
+2. Run the reference utility:
 
 ```powershell
-python python/vendor_route_symbols.py --source-dir "C:\path\to\mta-subway-bullets" --clean
+python scripts/vendor_route_symbols.py --source-dir "C:\path\to\mta-subway-bullets" --clean
 ```
 
 3. Commit generated `*.png` files in this directory.
+
+`scripts/vendor_route_symbols.py` is not part of the deployed sign or an installed
+CLI. It is retained solely to reproduce these checked-in assets if they need an
+upstream refresh.
 
 ## Expected output
 
