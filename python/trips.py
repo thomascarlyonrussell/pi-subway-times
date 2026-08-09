@@ -304,10 +304,10 @@ class Trips:
                 return next(iter(candidate_headsigns))
 
             return {
-                "N": "Northbound",
-                "S": "Southbound",
-                "E": "Eastbound",
-                "W": "Westbound",
+                "N": "North",
+                "S": "South",
+                "E": "East",
+                "W": "West",
             }[trip_token]
 
         return "Direction unavailable"

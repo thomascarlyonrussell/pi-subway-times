@@ -60,8 +60,24 @@ class TripPipelineAdaptiveValidation(unittest.TestCase):
 
         self.assertEqual(exact, "Jamaica-179 St")
         self.assertEqual(transition, "Jamaica-179 St")
-        self.assertEqual(ambiguous, "Northbound")
+        self.assertEqual(ambiguous, "North")
         self.assertEqual(unavailable, "Direction unavailable")
+
+    def test_direction_resolution_uses_compact_cardinal_fallbacks(self):
+        cfg = self._build_config()
+        trips = Trips("7 Av", ["N"], ["F"], config=cfg)
+
+        for token, expected_direction in {
+            "N": "North",
+            "S": "South",
+            "E": "East",
+            "W": "West",
+        }.items():
+            with self.subTest(token=token):
+                self.assertEqual(
+                    trips._resolve_trip_direction(f"112650_F..{token}", {}),  # pylint: disable=protected-access
+                    expected_direction,
+                )
 
     def test_direction_resolution_scopes_transition_suffixes_to_the_route(self):
         cfg = self._build_config()
