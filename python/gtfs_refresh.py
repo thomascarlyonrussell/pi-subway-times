@@ -9,6 +9,7 @@ import pathlib
 import shutil
 import sqlite3
 import subprocess
+import sys
 import tempfile
 import time
 import zipfile
@@ -252,6 +253,43 @@ def _run_service_action(action: str) -> subprocess.CompletedProcess:
     return subprocess.run(["sudo"] + command, capture_output=True, text=True, check=False)
 
 
+def _scan_stop_times_archive(archive_path: pathlib.Path):
+    with zipfile.ZipFile(archive_path, "r") as archive:
+        with archive.open("stop_times.txt", "r") as binary_handle:
+            text_handle = io.TextIOWrapper(binary_handle, encoding="utf-8", newline="")
+            reader = csv.reader(text_handle)
+            header = next(reader, None)
+            if not header:
+                return
+            col_map = {name.strip(): idx for idx, name in enumerate(header)}
+            trip_idx = col_map.get("trip_id")
+            stop_idx = col_map.get("stop_id")
+            arr_idx = col_map.get("arrival_time")
+            dep_idx = col_map.get("departure_time")
+            seq_idx = col_map.get("stop_sequence")
+            if trip_idx is None or stop_idx is None:
+                return
+
+            for row in reader:
+                if len(row) <= max(trip_idx, stop_idx):
+                    continue
+                trip_id = row[trip_idx].strip()
+                stop_id = row[stop_idx].strip()
+                if not trip_id or not stop_id:
+                    continue
+                dep_time = ""
+                if dep_idx is not None and len(row) > dep_idx:
+                    dep_time = row[dep_idx].strip()
+                if not dep_time and arr_idx is not None and len(row) > arr_idx:
+                    dep_time = row[arr_idx].strip()
+                seq = 0
+                if seq_idx is not None and len(row) > seq_idx:
+                    s_str = row[seq_idx].strip()
+                    if s_str.isdigit():
+                        seq = int(s_str)
+                yield trip_id, stop_id, dep_time, seq
+
+
 class GtfsStaticRefresher:
     def __init__(
         self,
@@ -393,186 +431,133 @@ class GtfsStaticRefresher:
         LOG.info("Building compact GTFS discovery catalog and trip resolution index")
         self._status("stations", 0, 0, "routes")
 
-        descriptor, database_name = tempfile.mkstemp(prefix="gtfs-catalog-", suffix=".sqlite3", dir=str(snapshot_dir))
-        os.close(descriptor)
-        database_path = pathlib.Path(database_name)
-        connection = sqlite3.connect(database_path)
-
-        try:
-            connection.execute("PRAGMA journal_mode=OFF")
-            connection.execute("PRAGMA synchronous=OFF")
-            connection.execute("PRAGMA cache_size=-16384")
-
-            connection.execute("CREATE TABLE static_trips (trip_id TEXT PRIMARY KEY, route_id TEXT, service_id TEXT, trip_headsign TEXT) WITHOUT ROWID")
-            connection.execute("CREATE TABLE stop_routes (stop_id TEXT, route_id TEXT, PRIMARY KEY (stop_id, route_id)) WITHOUT ROWID")
-            connection.execute("CREATE TABLE stop_times (trip_id TEXT, seq INTEGER, stop_id TEXT, dep_time TEXT)")
-
-            trip_to_route: Dict[str, str] = {}
-            static_trip_batch = []
-            with (snapshot_dir / "trips.txt").open("r", encoding="utf-8", newline="") as handle:
-                for row in csv.DictReader(handle):
-                    trip_id = row.get("trip_id", "").strip()
-                    route_id = row.get("route_id", "").strip().upper()
-                    service_id = row.get("service_id", "").strip()
-                    trip_headsign = row.get("trip_headsign", "").strip()
-                    if trip_id and route_id:
-                        trip_to_route[trip_id] = route_id
-                        static_trip_batch.append((trip_id, route_id, service_id, trip_headsign))
-                        if len(static_trip_batch) >= SQLITE_BATCH_SIZE:
-                            connection.executemany("INSERT OR IGNORE INTO static_trips VALUES (?, ?, ?, ?)", static_trip_batch)
-                            static_trip_batch.clear()
-            if static_trip_batch:
-                connection.executemany("INSERT OR IGNORE INTO static_trips VALUES (?, ?, ?, ?)", static_trip_batch)
-            connection.commit()
-
-            route_options = []
-            known_routes = set()
-            with (snapshot_dir / "routes.txt").open("r", encoding="utf-8", newline="") as handle:
-                for row in csv.DictReader(handle):
-                    route_id = row.get("route_id", "").strip().upper()
-                    if not route_id:
-                        continue
-                    known_routes.add(route_id)
-                    route_options.append(
-                        {
-                            "route_id": route_id,
-                            "route_short_name": row.get("route_short_name", "").strip(),
-                            "route_long_name": row.get("route_long_name", "").strip(),
-                            "route_color": row.get("route_color", "").strip().upper() or "FFFFFF",
-                        }
-                    )
-            route_options.sort(key=lambda item: item["route_id"])
-
-            stop_route_batch = []
-            stop_time_batch = []
-            supplemented_trips: set = set()
-
-            for archive_path in (supplement_archive, base_archive):
-                source_name = archive_path.stem
-                is_supplement = (archive_path == supplement_archive)
-                LOG.info("Scanning %s stop times for discovery catalog and resolution index", source_name)
-                self._status("stations", 0, 0, source_name)
-                row_count = 0
-                for row in _iter_archive_csv_rows(archive_path, "stop_times.txt"):
-                    trip_id = row.get("trip_id", "").strip()
-                    stop_id = row.get("stop_id", "").strip()
-                    route_id = trip_to_route.get(trip_id)
-                    if stop_id and route_id:
-                        stop_route_batch.append((stop_id, route_id))
-                        if len(stop_route_batch) >= SQLITE_BATCH_SIZE:
-                            connection.executemany("INSERT OR IGNORE INTO stop_routes VALUES (?, ?)", stop_route_batch)
-                            stop_route_batch.clear()
-
-                    if trip_id in trip_to_route:
-                        if is_supplement:
-                            supplemented_trips.add(trip_id)
-                        elif trip_id in supplemented_trips:
-                            row_count += 1
-                            continue
-
-                        dep_time = row.get("departure_time", "").strip() or row.get("arrival_time", "").strip()
-                        seq_str = row.get("stop_sequence", "0").strip()
-                        seq = int(seq_str) if seq_str.isdigit() else 0
-                        stop_time_batch.append((trip_id, seq, stop_id, dep_time))
-                        if len(stop_time_batch) >= SQLITE_BATCH_SIZE:
-                            connection.executemany("INSERT INTO stop_times VALUES (?, ?, ?, ?)", stop_time_batch)
-                            stop_time_batch.clear()
-
-                    row_count += 1
-                    if row_count % MERGE_PROGRESS_ROWS == 0:
-                        LOG.info("Scanned %s stop times from %s", f"{row_count:,}", source_name)
-                        self._status("stations", row_count, 0, f"{source_name[:4]} {row_count // 1000}K")
-
-            if stop_route_batch:
-                connection.executemany("INSERT OR IGNORE INTO stop_routes VALUES (?, ?)", stop_route_batch)
-            if stop_time_batch:
-                connection.executemany("INSERT INTO stop_times VALUES (?, ?, ?, ?)", stop_time_batch)
-            connection.commit()
-
-            stop_to_routes: Dict[str, set] = {}
-            for stop_id, route_id in connection.execute("SELECT stop_id, route_id FROM stop_routes"):
-                stop_to_routes.setdefault(stop_id, set()).add(route_id)
-
-            stops_by_name: Dict[str, Dict] = {}
-            with (snapshot_dir / "stops.txt").open("r", encoding="utf-8", newline="") as handle:
-                for row in csv.DictReader(handle):
-                    stop_id = row.get("stop_id", "").strip()
-                    stop_name = row.get("stop_name", "").strip()
-                    route_ids = sorted(route for route in stop_to_routes.get(stop_id, set()) if route in known_routes)
-                    if not stop_id or not stop_name or not route_ids:
-                        continue
-
-                    stop_key = stop_name.lower()
-                    stop = stops_by_name.setdefault(
-                        stop_key,
-                        {"stop_name": stop_name, "stop_ids": set(), "route_ids": set(), "directions": set()},
-                    )
-                    stop["stop_ids"].add(stop_id)
-                    stop["route_ids"].update(route_ids)
-                    direction = stop_id[-1].upper()
-                    if direction in {"N", "S", "E", "W"}:
-                        stop["directions"].add(direction)
-
-            stops = [
-                {
-                    "stop_name": stop["stop_name"],
-                    "stop_ids": sorted(stop["stop_ids"]),
-                    "route_ids": sorted(stop["route_ids"]),
-                    "directions": sorted(stop["directions"]),
-                }
-                for stop in stops_by_name.values()
-            ]
-            stops.sort(key=lambda item: item["stop_name"])
-            _save_json_atomic(
-                snapshot_dir / DISCOVERY_CATALOG_FILE,
-                {"version": 1, "generated_at_epoch": int(time.time()), "routes": route_options, "stops": stops},
-            )
-            LOG.info("Built discovery catalog with %s routes and %s stops", len(route_options), len(stops))
-
-            LOG.info("Indexing stop times in database for trip resolution index")
-            connection.execute("CREATE INDEX idx_stop_times ON stop_times(trip_id, seq)")
-
-            indexed_trips = {}
-            query = """
-                SELECT st.trip_id, t.route_id, t.service_id, t.trip_headsign, st.stop_id, st.dep_time
-                FROM stop_times st
-                JOIN static_trips t ON st.trip_id = t.trip_id
-                ORDER BY st.trip_id, st.seq
-            """
-            current_trip_id = None
-            current_trip_data = None
-
-            for trip_id, route_id, service_id, trip_headsign, stop_id, dep_time in connection.execute(query):
-                if trip_id != current_trip_id:
-                    if current_trip_data:
-                        indexed_trips[current_trip_id] = current_trip_data
-                    current_trip_id = trip_id
-                    current_trip_data = {
-                        "route_id": route_id,
-                        "service_id": service_id,
-                        "trip_id": trip_id,
-                        "trip_headsign": trip_headsign,
-                        "start_time": dep_time,
-                        "stop_ids": [stop_id] if stop_id else [],
+        trip_to_route: Dict[str, str] = {}
+        trip_records: Dict[str, Dict] = {}
+        with (snapshot_dir / "trips.txt").open("r", encoding="utf-8", newline="") as handle:
+            for row in csv.DictReader(handle):
+                trip_id = row.get("trip_id", "").strip()
+                route_id = row.get("route_id", "").strip().upper()
+                service_id = row.get("service_id", "").strip()
+                trip_headsign = row.get("trip_headsign", "").strip()
+                if trip_id and route_id:
+                    interned_route = sys.intern(route_id)
+                    trip_to_route[trip_id] = interned_route
+                    trip_records[trip_id] = {
+                        "route_id": interned_route,
+                        "service_id": sys.intern(service_id),
+                        "trip_headsign": sys.intern(trip_headsign),
+                        "st": [],
                     }
-                else:
-                    if not current_trip_data["start_time"] and dep_time:
-                        current_trip_data["start_time"] = dep_time
-                    if stop_id:
-                        current_trip_data["stop_ids"].append(stop_id)
 
-            if current_trip_data:
-                indexed_trips[current_trip_id] = current_trip_data
+        route_options = []
+        known_routes = set()
+        with (snapshot_dir / "routes.txt").open("r", encoding="utf-8", newline="") as handle:
+            for row in csv.DictReader(handle):
+                route_id = row.get("route_id", "").strip().upper()
+                if not route_id:
+                    continue
+                known_routes.add(sys.intern(route_id))
+                route_options.append(
+                    {
+                        "route_id": route_id,
+                        "route_short_name": row.get("route_short_name", "").strip(),
+                        "route_long_name": row.get("route_long_name", "").strip(),
+                        "route_color": row.get("route_color", "").strip().upper() or "FFFFFF",
+                    }
+                )
+        route_options.sort(key=lambda item: item["route_id"])
 
-            _save_json_atomic(
-                snapshot_dir / TRIP_RESOLUTION_INDEX_FILE,
-                {"version": 1, "generated_at_epoch": int(time.time()), "trips": indexed_trips},
-            )
-            LOG.info("Built trip resolution index with %s trips", len(indexed_trips))
+        stop_to_routes: Dict[str, set] = {}
+        supplemented_trips: set = set()
 
-        finally:
-            connection.close()
-            database_path.unlink(missing_ok=True)
+        for archive_path in (supplement_archive, base_archive):
+            source_name = archive_path.stem
+            is_supplement = (archive_path == supplement_archive)
+            LOG.info("Scanning %s stop times for discovery catalog and resolution index", source_name)
+            self._status("stations", 0, 0, source_name)
+            row_count = 0
+            for trip_id, stop_id_raw, dep_time, seq in _scan_stop_times_archive(archive_path):
+                stop_id = sys.intern(stop_id_raw)
+                route_id = trip_to_route.get(trip_id)
+                if route_id:
+                    stop_to_routes.setdefault(stop_id, set()).add(route_id)
+
+                if trip_id in trip_records:
+                    if is_supplement:
+                        supplemented_trips.add(trip_id)
+                    elif trip_id in supplemented_trips:
+                        row_count += 1
+                        continue
+
+                    trip_records[trip_id]["st"].append((seq, stop_id, sys.intern(dep_time)))
+
+                row_count += 1
+                if row_count % MERGE_PROGRESS_ROWS == 0:
+                    LOG.info("Scanned %s stop times from %s", f"{row_count:,}", source_name)
+                    self._status("stations", row_count, 0, f"{source_name[:4]} {row_count // 1000}K")
+
+        stops_by_name: Dict[str, Dict] = {}
+        with (snapshot_dir / "stops.txt").open("r", encoding="utf-8", newline="") as handle:
+            for row in csv.DictReader(handle):
+                stop_id = sys.intern(row.get("stop_id", "").strip())
+                stop_name = row.get("stop_name", "").strip()
+                route_ids = sorted(route for route in stop_to_routes.get(stop_id, set()) if route in known_routes)
+                if not stop_id or not stop_name or not route_ids:
+                    continue
+
+                stop_key = stop_name.lower()
+                stop = stops_by_name.setdefault(
+                    stop_key,
+                    {"stop_name": stop_name, "stop_ids": set(), "route_ids": set(), "directions": set()},
+                )
+                stop["stop_ids"].add(stop_id)
+                stop["route_ids"].update(route_ids)
+                direction = stop_id[-1].upper()
+                if direction in {"N", "S", "E", "W"}:
+                    stop["directions"].add(direction)
+
+        stops = [
+            {
+                "stop_name": stop["stop_name"],
+                "stop_ids": sorted(stop["stop_ids"]),
+                "route_ids": sorted(stop["route_ids"]),
+                "directions": sorted(stop["directions"]),
+            }
+            for stop in stops_by_name.values()
+        ]
+        stops.sort(key=lambda item: item["stop_name"])
+        _save_json_atomic(
+            snapshot_dir / DISCOVERY_CATALOG_FILE,
+            {"version": 1, "generated_at_epoch": int(time.time()), "routes": route_options, "stops": stops},
+        )
+        LOG.info("Built discovery catalog with %s routes and %s stops", len(route_options), len(stops))
+
+        indexed_trips = {}
+        for trip_id, rec in trip_records.items():
+            st_list = rec["st"]
+            if not st_list:
+                continue
+            st_list.sort(key=lambda item: item[0])
+            start_time = ""
+            for item in st_list:
+                if item[2]:
+                    start_time = item[2]
+                    break
+            stop_ids = [item[1] for item in st_list if item[1]]
+            indexed_trips[trip_id] = {
+                "route_id": rec["route_id"],
+                "service_id": rec["service_id"],
+                "trip_id": trip_id,
+                "trip_headsign": rec["trip_headsign"],
+                "start_time": start_time,
+                "stop_ids": stop_ids,
+            }
+
+        _save_json_atomic(
+            snapshot_dir / TRIP_RESOLUTION_INDEX_FILE,
+            {"version": 1, "generated_at_epoch": int(time.time()), "trips": indexed_trips},
+        )
+        LOG.info("Built trip resolution index with %s trips", len(indexed_trips))
 
     def _merge_archives(self, base_dir: pathlib.Path, supplement_dir: pathlib.Path, output_dir: pathlib.Path) -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -641,6 +626,37 @@ class GtfsStaticRefresher:
             by_name = {item["name"]: item for item in downloaded}
             if "base" not in by_name or "supplemented" not in by_name:
                 raise RuntimeError("Source list must include both 'base' and 'supplemented'")
+
+            if not force:
+                try:
+                    active_dir = get_active_data_dir()
+                    manifest_path = active_dir / "manifest.json"
+                    if manifest_path.exists():
+                        active_manifest = _load_json(manifest_path)
+                        if active_manifest and isinstance(active_manifest.get("sources"), list):
+                            active_sources = {
+                                s.get("name"): s.get("sha256")
+                                for s in active_manifest["sources"]
+                                if isinstance(s, dict)
+                            }
+                            if (
+                                active_sources.get("base") == by_name["base"]["sha256"]
+                                and active_sources.get("supplemented") == by_name["supplemented"]["sha256"]
+                            ):
+                                LOG.info(
+                                    "GTFS static feeds are unchanged (base and supplemented SHA256 match active dataset %s). Skipping promotion.",
+                                    active_manifest.get("dataset_id"),
+                                )
+                                self._status("ready", 1, 1, "")
+                                return {
+                                    "ok": True,
+                                    "promoted": False,
+                                    "unchanged": True,
+                                    "dataset_id": active_manifest.get("dataset_id"),
+                                    "downloads": downloaded,
+                                }
+                except Exception as exc:
+                    LOG.debug("Could not check active manifest for unchanged bypass: %s", exc)
 
             dataset_id = timestamp
             snapshot_dir = self.snapshots_dir / dataset_id

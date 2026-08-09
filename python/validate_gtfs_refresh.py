@@ -157,6 +157,10 @@ def run_dev_validation():
             phases = {event[0] for event in status_recorder.events}
             assert {"setup", "stations", "finalize", "ready"}.issubset(phases), "Refresh should publish setup status phases"
 
+            # Test unchanged feed bypass (without force)
+            unchanged_res = refresher.refresh(force=False, dry_run=False)
+            assert unchanged_res.get("ok") and unchanged_res.get("unchanged"), "Unchanged feeds should be bypassed when force=False"
+
         _build_archive(supplemented_zip, "00FF00")
         second = refresher.refresh(force=True, dry_run=False)
         assert second.get("ok"), f"Second promotion failed: {second}"
@@ -174,6 +178,7 @@ def run_dev_validation():
                 "promotion_success",
                 "second_promotion_success",
                 "rollback_success",
+                "unchanged_feed_bypassed",
                 "failure_preserves_previous_dataset",
                 "missing_active_snapshot_fails_clearly",
                 "discovery_catalog_preserves_supplement_precedence",
