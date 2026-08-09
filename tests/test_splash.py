@@ -115,6 +115,7 @@ class BootSplashValidation(unittest.TestCase):
         self.assertIn("ExecStart=/home/subwaysign/project/.venv/bin/subway-splash", unit_text)
         self.assertNotIn("--duration", unit_text)
         self.assertNotIn("Conflicts=", unit_text)
+        self.assertNotIn("Conflicts=", setup_script_text)
         self.assertEqual(setup_script_text.count("ExecStartPre=/usr/bin/systemctl stop subway-splash.service"), 2)
 
 

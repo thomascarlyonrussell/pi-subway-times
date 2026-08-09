@@ -94,7 +94,6 @@ Description=Subway Sign Opening Boot Splash Screen
 DefaultDependencies=no
 After=local-fs.target
 Before=gtfs-bootstrap.service subway-sign.service network-online.target
-Conflicts=gtfs-bootstrap.service subway-sign.service
 
 [Service]
 Type=simple
