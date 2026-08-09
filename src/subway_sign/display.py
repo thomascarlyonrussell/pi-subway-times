@@ -3,8 +3,10 @@ try:
 except ImportError:  # pragma: no cover - absent on non-Pi desktop environment
     graphics = None
 
+
 def clamp_color_value(value):
     return max(0, min(value, 255))
+
 
 def get_clamped_color(color_value):
     r = clamp_color_value((color_value >> 16) & 0xFF)
@@ -13,6 +15,7 @@ def get_clamped_color(color_value):
     if graphics is not None:
         return graphics.Color(r, g, b)
     return (r, g, b)
+
 
 def get_char_width(font, char):
     if font is not None and hasattr(font, "CharacterWidth"):
@@ -24,10 +27,12 @@ def get_char_width(font, char):
             pass
     return 6
 
+
 def get_string_width(font, text):
     if not text:
         return 0
     return sum(get_char_width(font, char) for char in text)
+
 
 def truncate_to_pixel_width(font, text, max_pixels=40, max_chars=None):
     if not text:

@@ -14,7 +14,7 @@ except ImportError:  # pragma: no cover - optional compatibility dependency
 
 LOG = logging.getLogger(__name__)
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 CANONICAL_CONFIG_PATH = pathlib.Path("/etc/matrix_config.json")
 DEFAULT_CANONICAL_CONFIG_PATH = pathlib.Path("/etc/matrix_config_default.json")
 DEV_CANONICAL_CONFIG_PATH = REPO_ROOT / "setup" / "matrix_config.json"

@@ -9,7 +9,7 @@ except ImportError:
     Image = None
 
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_SOURCE_DIR = REPO_ROOT / ".tmp" / "mta-subway-bullets"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "assets" / "route_symbols"
 

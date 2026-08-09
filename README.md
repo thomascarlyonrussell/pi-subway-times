@@ -46,19 +46,20 @@ the RGB Matrix Bonnet/HAT or repairing its driver installation.
 ### Run the Program
 1. SSH into the Raspberry Pi by running the following command:
 ```bash
-ssh pi@raspberrypi.local
+ssh subwaysign@subwaysign.local
 ```
-2. Run the program by running the following command:
+2. Run the program using `uv`:
 ```bash
 cd /home/subwaysign/project
-sudo ./.rgb-matrix-installer-env/bin/python python/main.py
+sudo .venv/bin/subway-display
 ```
-The RGB Matrix installer places its `rgbmatrix` binding in this virtual
-environment on a fresh setup. Existing prototypes that already run the display
-with `/usr/bin/python3` can continue using their working service interpreter.
+Or run the console emulator without hardware:
+```bash
+uv run subway-emulator
+```
 
 3. The program will start running and display the output on the screen.
-3. Press `Ctrl + C` to stop the program.
+4. Press `Ctrl + C` to stop the program.
 
 ### Setup Startup Script
 This is a more robust way to start a script on boot.
@@ -128,18 +129,18 @@ sudo nano /etc/logrotate.d/subway-sign
 }
 ```
 
-### Validate Unified Config Flow
+### Validate Unified Config Flow and Run Tests
+
+Run automated test suite:
+
+```bash
+uv run pytest
+```
 
 Run local config-flow checks:
 
 ```bash
-python3 python/validate_config_flow.py
-```
-
-Run full checks on Raspberry Pi (includes service status checks):
-
-```bash
-python3 python/validate_config_flow.py --with-services
+uv run pytest tests/test_config_flow.py
 ```
 
 ### Console Emulator
@@ -147,16 +148,16 @@ python3 python/validate_config_flow.py --with-services
 On a development machine, preview the sign's logical arrival rows without Raspberry Pi LED hardware, root access, or a systemd service:
 
 ```bash
-python3 python/console_emulator.py
+uv run subway-emulator
 ```
 
 Use `Ctrl + C` to stop it. The emulator loads the same runtime configuration as the sign. To test another canonical JSON configuration without changing the system configuration, set `MATRIX_CONFIG_PATH` before launch:
 
 ```bash
-MATRIX_CONFIG_PATH=/path/to/matrix_config.json python3 python/console_emulator.py
+MATRIX_CONFIG_PATH=/path/to/matrix_config.json uv run subway-emulator
 ```
 
-The emulator requests live MTA data through the production trip pipeline, so it needs network access, an active static GTFS snapshot, and the Python dependencies in `requirements.txt`. Create a snapshot with `python3 python/gtfs_refresh.py --force` before using the emulator on a fresh checkout. It displays logical route, direction, arrival, refresh, and error state only; it does not reproduce LED pixels, fonts, colors, symbols, GPIO behavior, or hardware refresh timing.
+The emulator requests live MTA data through the production trip pipeline, so it needs network access and an active static GTFS snapshot. Create a snapshot with `uv run subway-gtfs-refresh --force` before using the emulator on a fresh checkout. It displays logical route, direction, arrival, refresh, and error state only; it does not reproduce LED pixels, fonts, colors, symbols, GPIO behavior, or hardware refresh timing.
 
 ### Static GTFS Refresh
 
@@ -172,24 +173,23 @@ On first setup, or when the active snapshot is missing, `gtfs-bootstrap.service`
 Manual forced refresh:
 
 ```bash
-python3 python/gtfs_refresh.py --force
+uv run subway-gtfs-refresh --force
 ```
 
 Manual visual bootstrap, useful after intentionally removing an invalid or legacy state pointer:
 
 ```bash
-sudo python3 python/gtfs_bootstrap.py --force
+sudo .venv/bin/subway-gtfs-bootstrap --force
 ```
 
 Manual rollback to previous snapshot:
 
 ```bash
-python3 python/gtfs_refresh.py --rollback
+uv run subway-gtfs-refresh --rollback
 ```
 
 Dev validation for promotion/failure/rollback behavior:
 
 ```bash
-python3 python/validate_gtfs_refresh.py
-python3 python/validate_bootstrap_status.py
+uv run pytest
 ```

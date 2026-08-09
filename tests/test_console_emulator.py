@@ -7,12 +7,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-PYTHON_DIR = pathlib.Path(__file__).resolve().parent
-if str(PYTHON_DIR) not in sys.path:
-    sys.path.insert(0, str(PYTHON_DIR))
-
-from config import DEFAULT_CONFIG, load_runtime_config, save_canonical_config, validate_config  # noqa: E402
-from console_emulator import ConsoleEmulator, normalize_rows  # noqa: E402
+from subway_sign.config import DEFAULT_CONFIG, load_runtime_config, save_canonical_config, validate_config
+from subway_sign.console_emulator import ConsoleEmulator, normalize_rows
 
 
 class StubTrips:
@@ -48,8 +44,8 @@ class ConsoleEmulatorValidation(unittest.TestCase):
                 self.assertEqual(load_runtime_config()["feed"]["mta_stop"], "Alternate Station")
 
     def test_import_does_not_load_physical_display_modules(self):
-        sys.modules.pop("console_emulator", None)
-        importlib.import_module("console_emulator")
+        sys.modules.pop("subway_sign.console_emulator", None)
+        importlib.import_module("subway_sign.console_emulator")
         self.assertNotIn("rgbmatrix", sys.modules)
 
     def test_normalization_and_third_row_rotation(self):

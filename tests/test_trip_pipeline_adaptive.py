@@ -5,12 +5,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-PYTHON_DIR = pathlib.Path(__file__).resolve().parent
-if str(PYTHON_DIR) not in sys.path:
-    sys.path.insert(0, str(PYTHON_DIR))
-
-from config import DEFAULT_CONFIG, validate_config  # noqa: E402
-from trips import Trips  # noqa: E402
+from subway_sign.config import DEFAULT_CONFIG, validate_config
+from subway_sign.trips import Trips
 
 
 class TripPipelineAdaptiveValidation(unittest.TestCase):

@@ -3,7 +3,7 @@
 import pathlib
 import unittest
 
-from display import (
+from subway_sign.display import (
     clamp_color_value,
     get_char_width,
     get_clamped_color,

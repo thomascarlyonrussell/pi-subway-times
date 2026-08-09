@@ -22,9 +22,14 @@ else
     cd $PROJECT_DIR && git pull origin main
 fi
 
-# Install Python dependencies
-echo "Installing Python dependencies..."
-pip3 install --break-system-packages -r $PROJECT_DIR/requirements.txt
+# Install Python dependencies using uv
+echo "Installing Python dependencies with uv..."
+if ! command -v uv &> /dev/null; then
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+cd "$PROJECT_DIR"
+uv sync
 
 # === UPDATE AND CONFIGURE RGB MATRIX BONNET ===
 echo "Installing and configuring Adafruit RGB Matrix Bonnet..."
@@ -61,7 +66,7 @@ Wants=network-online.target
 Requires=gtfs-bootstrap.service
 
 [Service]
-ExecStart=$PROJECT_DIR/.rgb-matrix-installer-env/bin/python $PROJECT_DIR/python/main.py
+ExecStart=$PROJECT_DIR/.venv/bin/subway-display
 WorkingDirectory=$PROJECT_DIR
 Restart=always
 User=root
@@ -86,7 +91,7 @@ Before=subway-sign.service
 [Service]
 Type=oneshot
 WorkingDirectory=$PROJECT_DIR
-ExecStart=/usr/bin/python3 $PROJECT_DIR/python/gtfs_bootstrap.py
+ExecStart=$PROJECT_DIR/.venv/bin/subway-gtfs-bootstrap
 User=root
 Environment="PYTHONUNBUFFERED=1"
 EOF
@@ -102,7 +107,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=$PROJECT_DIR
-ExecStart=/usr/bin/python3 $PROJECT_DIR/python/gtfs_refresh.py
+ExecStart=$PROJECT_DIR/.venv/bin/subway-gtfs-refresh
 User=root
 Environment="PYTHONUNBUFFERED=1"
 EOF
@@ -132,7 +137,7 @@ Description=Web Config for Subway Sign
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 $PROJECT_DIR/python/web_config.py
+ExecStart=$PROJECT_DIR/.venv/bin/subway-web-config
 WorkingDirectory=$PROJECT_DIR
 Restart=always
 User=subwaysign

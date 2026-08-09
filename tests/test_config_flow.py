@@ -9,11 +9,11 @@ import subprocess
 import sys
 from typing import List
 
-from config import DEFAULT_CONFIG, load_runtime_config, save_canonical_config, validate_config
+from subway_sign.config import DEFAULT_CONFIG, load_runtime_config, save_canonical_config, validate_config
 
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-VALIDATION_DIR = REPO_ROOT / "python" / ".validation"
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+VALIDATION_DIR = REPO_ROOT / "tests" / ".validation"
 LOCAL_CONFIG_PATH = VALIDATION_DIR / "matrix_config.json"
 LOCAL_DEFAULT_PATH = VALIDATION_DIR / "matrix_config_default.json"
 
@@ -118,7 +118,7 @@ def validate_discovery_and_save_flow() -> List[str]:
         return failures
 
     try:
-        import web_config  # local import so env overrides apply before module import
+        from subway_sign import web_config  # local import so env overrides apply before module import
         web_config = importlib.reload(web_config)
         web_config.apply_runtime_changes = lambda restart_web_config=False: False
         web_config.app.testing = True
@@ -220,6 +220,16 @@ def validate_service_checks() -> List[str]:
     return failures
 
 
+def test_local_flow():
+    failures = validate_local_flow()
+    assert not failures, f"Failures in local flow: {failures}"
+
+
+def test_discovery_and_save_flow():
+    failures = validate_discovery_and_save_flow()
+    assert not failures, f"Failures in discovery/save flow: {failures}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate unified config flow.")
     parser.add_argument(
@@ -251,4 +261,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

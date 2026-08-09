@@ -5,8 +5,8 @@ import sys
 import time
 from datetime import datetime
 
-from config import load_runtime_config
-from display import truncate_to_pixel_width
+from subway_sign.config import load_runtime_config
+from subway_sign.display import truncate_to_pixel_width
 
 
 def placeholder_rows():
@@ -43,7 +43,7 @@ class ConsoleEmulator:
         self.directions = [direction.strip() for direction in display["mta_directions"].split(",") if direction.strip()]
         self.station = feed["mta_stop"]
         if trip_pipeline is None:
-            from trips import Trips
+            from subway_sign.trips import Trips
 
             trip_pipeline = Trips(self.station, self.directions, self.routes, config=self.config)
         self.trips = trip_pipeline
@@ -161,12 +161,13 @@ class ConsoleEmulator:
             return
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Preview the subway sign's logical rows in a terminal.")
     parser.add_argument("--once", action="store_true", help="Fetch and render one frame, then exit.")
     args = parser.parse_args()
     ConsoleEmulator().run(once=args.once)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

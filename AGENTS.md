@@ -18,15 +18,19 @@ run the code, and outlines conventions and gotchas.
 - **Runtime environment**: normally run under `subwaysign` user; the display service
   currently runs as `root` due to GPIO/LED permissions.
 
-Key code lives in `python/`:
+Key code lives in `src/subway_sign/`:
 
 | File | Role |
 |------|------|
-| `main.py` | Main loop / screen rendering.
+| `main.py` | Main loop / screen rendering (`subway-display`).
 | `trips.py` | GTFS static parsing & MTA real‑time feed processing.
 | `display.py` | Color helpers.
-| `web_config.py` | Flask-based web UI for configuration.
+| `web_config.py` | Flask-based web UI for configuration (`subway-web-config`).
 | `wifi_manager.py` | Wi‑Fi credential management & AP mode logic.
+| `gtfs_refresh.py` | Automated GTFS static data fetcher (`subway-gtfs-refresh`).
+| `gtfs_bootstrap.py` | GTFS static status and bootstrap check (`subway-gtfs-bootstrap`).
+| `console_emulator.py` | Terminal console emulator for sign (`subway-emulator`).
+| `vendor_route_symbols.py` | SVG route symbol vendor script (`subway-vendor-symbols`).
 
 Static GTFS snapshots under `/var/lib/subway-sign/gtfs-static` contain the stop and route lookup data. Provisioning downloads the initial snapshot before starting the display service.
 `settings.toml` is the canonical configuration; a JSON copy (`/etc/matrix_config.json`)
@@ -36,9 +40,8 @@ is written by the web UI.
 
 ## ⚙️ Setup & build
 
-The project doesn't have a build step; it relies on Python dependencies declared in
-`requirements.txt`.  Typical setup on a fresh Pi is automated by
-`setup/setup_subway_sign.sh`.
+The project uses `uv` for dependency and environment management, declared in `pyproject.toml`.
+Typical setup on a fresh Pi is automated by `setup/setup_subway_sign.sh`.
 
 ```bash
 # on the Pi
@@ -49,13 +52,16 @@ sudo ./setup_subway_sign.sh
 
 That script:
 
-1. Installs Python packages (`pip3 install -r requirements.txt`).
-2. Sets up systemd services (`subway-sign` & `web-config`).
+1. Installs `uv` and synchronizes the environment (`uv sync`).
+2. Sets up systemd services (`subway-sign`, `web-config`, `gtfs-bootstrap`, `gtfs-static-refresh`).
 3. Moves config files into place and clones the repo.
 
-If you work on a desktop machine, install the Python deps manually and run the
-scripts without the LED hardware (the `rgbmatrix` library will refuse to
-initialize).
+On a development machine:
+
+```bash
+uv sync
+uv run pytest
+```
 
 ---
 
@@ -64,18 +70,21 @@ initialize).
 **Manual invocation** (for development):
 
 ```bash
-cd /path/to/repo/python
-sudo python3 main.py
+sudo .venv/bin/subway-display
+# or console emulator without hardware:
+uv run subway-emulator
 ```
 
 `sudo` is required when the matrix bonnets are attached; the driver requires
-root permissions.  On a dev box without hardware, remove the `sudo` and/or stub
+root permissions.  On a dev box without hardware, run `uv run subway-emulator` or stub
 out the `rgbmatrix` imports.
 
 **Services**:
 
 - `subway-sign.service` – display daemon (runs as root!).
 - `web-config.service` – Flask UI for editing Wi‑Fi and display settings.
+- `gtfs-bootstrap.service` – GTFS bootstrap check.
+- `gtfs-static-refresh.service` – GTFS static data scheduled refresh.
 
 Use `systemctl {start,stop,status}` to control them.  Logs are accessible via
 `journalctl -u subway-sign` (or `web-config`).
@@ -95,8 +104,8 @@ discharged via the web UI.
    BDF font file to `fonts/`.
 2. **Change refresh interval**: edit `settings.toml`, e.g. `update_interval_sec`.
 3. **Debug real-time feed parsing**: sprinkle `print` statements or use
-   `python -m pdb python/trips.py` to replay a saved GTFS-realtime protobuf.
-4. **Simulate AP mode**: remove Wi‑Fi credentials and run `python/web_config.py` –
+   `uv run python -m pdb -m subway_sign.trips` to replay a saved GTFS-realtime protobuf.
+4. **Simulate AP mode**: remove Wi‑Fi credentials and run `uv run subway-web-config` –
    it will create an open access point.
 
 ---
@@ -111,8 +120,7 @@ discharged via the web UI.
 - **Static GTFS snapshots** are device-local runtime data and are not checked in.
   Provisioning must complete an initial refresh before the sign or emulator can read
   stop, route, and trip metadata.
-- **No automated tests**; expect manual verification.  Unit tests may be added in
-  the future under `tests/` if automated CI is desired.
+- **Automated tests**: suite lives under `tests/` and can be run with `uv run pytest`.
 - Wi‑Fi AP password is hard‑coded in setup script (`SetupYourSign`).  Change if
   you intend to distribute hardware.
 - HTTP Basic auth in `web_config.py` is currently commented out.
@@ -126,7 +134,7 @@ place:
 
 - "How do I run the display script on my laptop without the LED hardware?"
 - "Add support for the N/Q/R/W lines to the font map."
-- "Explain why `sudo python main.py` is required."
+- "Explain why `sudo .venv/bin/subway-display` is required."
 - "Generate a systemd service file snippet for the `subway-sign` service."
 - "Where is the configuration stored and how can I change the refresh interval?"
 
@@ -136,4 +144,4 @@ apply.
 
 ---
 
-*Last updated: 2026-03-01*
+*Last updated: 2026-08-09*

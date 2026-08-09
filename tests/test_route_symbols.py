@@ -5,11 +5,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-PYTHON_DIR = pathlib.Path(__file__).resolve().parent
-if str(PYTHON_DIR) not in sys.path:
-    sys.path.insert(0, str(PYTHON_DIR))
-
-from route_symbols import (  # noqa: E402
+from subway_sign.route_symbols import (
     DEFAULT_ROUTE_SYMBOL_ALIASES,
     FontRouteSymbolBackend,
     ImageRouteSymbolBackend,
@@ -22,6 +18,9 @@ try:
     from PIL import Image
 except ImportError:
     Image = None
+
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class MockCanvas:
@@ -39,7 +38,7 @@ class MockFont:
 class RouteSymbolsValidation(unittest.TestCase):
     def setUp(self):
         self.logger = logging.getLogger("validate_route_symbols")
-        self.assets_dir = PYTHON_DIR.parent / "assets" / "route_symbols"
+        self.assets_dir = REPO_ROOT / "assets" / "route_symbols"
 
     @unittest.skipIf(Image is None, "Pillow not installed")
     def test_image_backend_preserves_multicolor_glyph_and_bullet_colors(self):

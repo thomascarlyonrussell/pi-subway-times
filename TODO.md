@@ -9,7 +9,7 @@
 - [ ] `unify-config-sources-and-settings-flow`
   - [x] Establish one canonical config path/format.
   - [x] This unblocks clean implementation of all UI/data/runtime changes.
-  - [ ] Remaining validation task: run `python3 python/validate_config_flow.py --with-services` on Raspberry Pi hardware.
+  - [ ] Remaining validation task: run `uv run pytest tests/test_config_flow.py` on Raspberry Pi hardware.
 
 ## Phase 2 - Setup and Security
 - [ ] `secure-wifi-onboarding-and-ap-flow`
@@ -23,7 +23,7 @@
 - [ ] `automate-gtfs-static-data-refresh`
   - [x] Add scheduled static GTFS refresh with rollback/transition safeguards.
   - [x] Raspberry Pi integration: promoted GTFS snapshot exists under `/var/lib/subway-sign/gtfs-static`, `gtfs-bootstrap` skips a valid snapshot, and `gtfs-static-refresh.timer` is enabled.
-  - [ ] Remaining validation task: run `python3 python/validate_gtfs_refresh.py --with-pi-checks` on Raspberry Pi hardware and verify `gtfs-static-refresh.timer` / `subway-sign` runtime stability.
+  - [ ] Remaining validation task: run `uv run pytest tests/test_gtfs_refresh.py` on Raspberry Pi hardware and verify `gtfs-static-refresh.timer` / `subway-sign` runtime stability.
 - [ ] `improve-trip-direction-mapping-and-fetch-cadence`
   - [x] Expand realtime feed group coverage for additional lines.
   - [x] Add adaptive polling and direction mapping improvements.

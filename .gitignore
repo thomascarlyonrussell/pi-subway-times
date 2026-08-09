@@ -1,10 +1,15 @@
 .venv*
 __pycache__*
 .github
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.uv/
 
 # Local runtime state and generated validation artifacts.
 .tmp/
-python/.validation/
+.validation/
 setup/.tmp/
 setup/gtfs_static_state/
 setup/subway_sign.log

@@ -18,10 +18,10 @@ from typing import Dict, List, Optional, Sequence
 
 import requests
 
-from config import load_runtime_config
+from subway_sign.config import load_runtime_config
 
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_STATE_DIR = REPO_ROOT / "setup" / "gtfs_static_state"
 SYSTEM_STATE_DIR = pathlib.Path("/var/lib/subway-sign/gtfs-static")
 
@@ -788,7 +788,7 @@ def get_active_data_dir() -> pathlib.Path:
         if candidate.exists():
             return candidate
     raise RuntimeError(
-        "No active GTFS static snapshot is available. Run 'python3 python/gtfs_refresh.py --force' before starting the sign."
+        "No active GTFS static snapshot is available. Run 'uv run subway-gtfs-refresh --force' before starting the sign."
     )
 
 

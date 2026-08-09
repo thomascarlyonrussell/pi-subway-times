@@ -5,24 +5,22 @@ import sys
 import unittest
 from unittest import mock
 
-PYTHON_DIR = pathlib.Path(__file__).resolve().parent
-if str(PYTHON_DIR) not in sys.path:
-    sys.path.insert(0, str(PYTHON_DIR))
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 os.environ.setdefault("SUBWAY_SETUP_PIN", "123456")
 os.environ.setdefault("WEB_CONFIG_SECRET_KEY", "test-secret")
 
-workspace_tmp_root = pathlib.Path(__file__).resolve().parent.parent / ".tmp"
+workspace_tmp_root = REPO_ROOT / "tests" / ".tmp"
 workspace_tmp_root.mkdir(parents=True, exist_ok=True)
 temp_dir = workspace_tmp_root / "subway-wifi-security"
 temp_dir.mkdir(parents=True, exist_ok=True)
 os.environ["MATRIX_CONFIG_PATH"] = str(temp_dir / "matrix_config.json")
 os.environ["MATRIX_CONFIG_DEFAULT_PATH"] = str(
-    pathlib.Path(__file__).resolve().parent.parent / "setup" / "matrix_config_default.json"
+    REPO_ROOT / "setup" / "matrix_config_default.json"
 )
 
-from config import DEFAULT_CONFIG  # noqa: E402
-import web_config  # noqa: E402
+from subway_sign.config import DEFAULT_CONFIG  # noqa: E402
+from subway_sign import web_config  # noqa: E402
 
 
 class WifiOnboardingSecurityValidation(unittest.TestCase):
@@ -39,7 +37,7 @@ class WifiOnboardingSecurityValidation(unittest.TestCase):
         login = self.client.post("/auth/login", json={"pin": "123456"})
         self.assertEqual(login.status_code, 200)
 
-        with mock.patch("web_config.apply_runtime_changes", return_value=False):
+        with mock.patch("subway_sign.web_config.apply_runtime_changes", return_value=False):
             response = self.client.post(
                 "/",
                 data={"ssid": "test-network", "password": "SuperSecretPassword"},

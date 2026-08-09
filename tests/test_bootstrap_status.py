@@ -4,10 +4,7 @@ import types
 import unittest
 from unittest import mock
 
-
-PYTHON_DIR = pathlib.Path(__file__).resolve().parent
-if str(PYTHON_DIR) not in sys.path:
-    sys.path.insert(0, str(PYTHON_DIR))
+from subway_sign.bootstrap_status import BootstrapStatusRenderer
 
 
 class FakeCanvas:
@@ -80,10 +77,8 @@ class BootstrapStatusValidation(unittest.TestCase):
             graphics=FakeGraphics,
         )
         with mock.patch.dict(sys.modules, {"rgbmatrix": fake_module}):
-            from bootstrap_status import BootstrapStatusRenderer
-
             renderer = BootstrapStatusRenderer(self.config)
-            with mock.patch("bootstrap_status.time.monotonic", side_effect=[1.0, 2.0, 3.0]):
+            with mock.patch("subway_sign.bootstrap_status.time.monotonic", side_effect=[1.0, 2.0, 3.0]):
                 renderer.update("download", completed=32, total=64, detail="base")
                 renderer.update("finalize", detail="checks")
                 renderer.update("failed", detail="terminal")
@@ -105,10 +100,8 @@ class BootstrapStatusValidation(unittest.TestCase):
             graphics=FakeGraphics,
         )
         with mock.patch.dict(sys.modules, {"rgbmatrix": fake_module}):
-            from bootstrap_status import BootstrapStatusRenderer
-
             renderer = BootstrapStatusRenderer(self.config)
-            with mock.patch("bootstrap_status.time.monotonic", side_effect=[1.0, 1.1, 1.2]):
+            with mock.patch("subway_sign.bootstrap_status.time.monotonic", side_effect=[1.0, 1.1, 1.2]):
                 renderer.update("stations", completed=1, detail="base")
                 renderer.update("stations", completed=2, detail="base")
                 renderer.update("stations", completed=3, detail="base")

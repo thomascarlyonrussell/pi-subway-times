@@ -8,18 +8,18 @@ from functools import wraps
 
 import logging
 
-from config import load_runtime_config, save_canonical_config, validate_config
-from trips import (
+from subway_sign.config import load_runtime_config, save_canonical_config, validate_config
+from subway_sign.trips import (
     get_discoverable_routes,
     get_discoverable_stops,
     get_discovery_metadata,
     validate_route_stop_selection,
 )
-from wifi_manager import apply_runtime_sequence, encrypt_password, run_systemctl
+from subway_sign.wifi_manager import apply_runtime_sequence, encrypt_password, run_systemctl
 
 
 LOG_FILE = "/var/log/subway_sign.log"
-LOG_FILE_FALLBACK = pathlib.Path(__file__).resolve().parent.parent / "setup" / "subway_sign.log"
+LOG_FILE_FALLBACK = pathlib.Path(__file__).resolve().parents[2] / "setup" / "subway_sign.log"
 SENSITIVE_FIELDS = {"password", "psk", "secret", "token", "pin"}
 
 try:
@@ -40,13 +40,13 @@ except OSError:
 def log_event(level, message):
     logging.log(getattr(logging, level.upper(), logging.INFO), message)
 
-template_path = pathlib.Path(__file__).parent.parent / "templates"
+template_path = pathlib.Path(__file__).resolve().parents[2] / "templates"
 config_path = pathlib.Path(os.environ.get("MATRIX_CONFIG_PATH", "/etc/matrix_config.json"))
 config_path_default = pathlib.Path(os.environ.get("MATRIX_CONFIG_DEFAULT_PATH", "/etc/matrix_config_default.json"))
 if not config_path.parent.exists():
-    config_path = pathlib.Path(__file__).parent.parent / "setup" / "matrix_config.json"
+    config_path = pathlib.Path(__file__).resolve().parents[2] / "setup" / "matrix_config.json"
 if not config_path_default.parent.exists():
-    config_path_default = pathlib.Path(__file__).parent.parent / "setup" / "matrix_config_default.json"
+    config_path_default = pathlib.Path(__file__).resolve().parents[2] / "setup" / "matrix_config_default.json"
 
 CONFIG_FILE = config_path.absolute()
 CONFIG_PATH_DEFAULT = config_path_default.absolute()
@@ -54,15 +54,15 @@ TEMPLATE_FILE = template_path.absolute()
 os.environ["MATRIX_CONFIG_PATH"] = str(CONFIG_FILE)
 os.environ["MATRIX_CONFIG_DEFAULT_PATH"] = str(CONFIG_PATH_DEFAULT)
 
-app = Flask(__name__,template_folder=TEMPLATE_FILE)
+app = Flask(__name__, template_folder=TEMPLATE_FILE)
 
 SESSION_TTL_SEC = int(os.environ.get("SETUP_SESSION_TTL_SEC", "900"))
 SETUP_PIN_FILE = pathlib.Path(os.environ.get("SETUP_PIN_FILE", "/etc/subway_setup_pin"))
 if not os.access(SETUP_PIN_FILE.parent, os.W_OK):
-    SETUP_PIN_FILE = pathlib.Path(__file__).resolve().parent.parent / "setup" / "subway_setup_pin"
+    SETUP_PIN_FILE = pathlib.Path(__file__).resolve().parents[2] / "setup" / "subway_setup_pin"
 SECRET_FILE_DEFAULT = pathlib.Path(os.environ.get("WEB_CONFIG_SECRET_FILE", "/etc/web_config_secret"))
 if not os.access(SECRET_FILE_DEFAULT.parent, os.W_OK):
-    SECRET_FILE_DEFAULT = pathlib.Path(__file__).resolve().parent.parent / "setup" / "web_config_secret"
+    SECRET_FILE_DEFAULT = pathlib.Path(__file__).resolve().parents[2] / "setup" / "web_config_secret"
 
 
 def _set_owner_only_mode(path):
@@ -351,7 +351,10 @@ def discovery_stops():
     )
 
 
-if __name__ == "__main__":
+def main() -> int:
     app.run(host="0.0.0.0", port=5000, debug=True)
-    # app.run(host="0.0.0.0", port=5000, ssl_context=("cert.pem", "key.pem"))  # https
-    # app.run(host="127.0.0.1", port=5000) #local connections only
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

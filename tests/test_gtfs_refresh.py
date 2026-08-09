@@ -8,12 +8,7 @@ import sys
 import zipfile
 from unittest import mock
 
-from gtfs_refresh import DISCOVERY_CATALOG_FILE, TRIP_RESOLUTION_INDEX_FILE, GtfsSource, GtfsStaticRefresher, get_active_data_dir
-
-
-PYTHON_DIR = pathlib.Path(__file__).resolve().parent
-if str(PYTHON_DIR) not in sys.path:
-    sys.path.insert(0, str(PYTHON_DIR))
+from subway_sign.gtfs_refresh import DISCOVERY_CATALOG_FILE, TRIP_RESOLUTION_INDEX_FILE, GtfsSource, GtfsStaticRefresher, get_active_data_dir
 
 
 REQUIRED_CONTENT = {
@@ -56,7 +51,7 @@ def _build_archive(path: pathlib.Path, route_color: str):
 
 
 def run_dev_validation():
-    temp_root = pathlib.Path(__file__).resolve().parent.parent / "setup" / ".tmp"
+    temp_root = pathlib.Path(__file__).resolve().parents[1] / "tests" / ".tmp"
     temp_root.mkdir(parents=True, exist_ok=True)
     temp_dir = temp_root / "gtfs-refresh-validate"
     shutil.rmtree(temp_dir, ignore_errors=True)
@@ -86,7 +81,7 @@ def run_dev_validation():
         status_recorder = StatusRecorder()
         refresher.status_renderer = status_recorder
 
-        with mock.patch("gtfs_refresh._state_files", return_value={"current": state_dir / "current.json"}):
+        with mock.patch("subway_sign.gtfs_refresh._state_files", return_value={"current": state_dir / "current.json"}):
             try:
                 get_active_data_dir()
             except RuntimeError as exc:
@@ -148,8 +143,8 @@ def run_dev_validation():
         }, "Trip resolution index entry should match expected structure"
         assert not (snapshot_dir / "stop_times.txt").exists(), "Snapshots should omit unused stop_times.txt"
         assert not (snapshot_dir / "shapes.txt").exists(), "Snapshots should omit unused shapes.txt"
-        with mock.patch("gtfs_refresh._state_files", return_value={"current": state_dir / "current.json"}):
-            from trips import get_discoverable_routes, get_discoverable_stops
+        with mock.patch("subway_sign.gtfs_refresh._state_files", return_value={"current": state_dir / "current.json"}):
+            from subway_sign.trips import get_discoverable_routes, get_discoverable_stops
 
             assert get_discoverable_routes()[0]["route_color"] == "AABBCC"
             assert get_discoverable_stops(["F"], ["N"])[0]["stop_name"] == "7 Av"
@@ -218,6 +213,11 @@ def run_pi_checks():
         }
     )
     return {"ok": True, "checks": checks}
+
+
+def test_gtfs_refresh_dev_validation():
+    result = run_dev_validation()
+    assert result.get("ok") is True, f"GTFS refresh validation failed: {result}"
 
 
 def main() -> int:

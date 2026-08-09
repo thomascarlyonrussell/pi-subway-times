@@ -12,7 +12,7 @@ from cryptography.fernet import Fernet
 LOG = logging.getLogger(__name__)
 
 CONFIG_FILE = os.environ.get("MATRIX_CONFIG_PATH", "/etc/matrix_config.json")
-REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 WPA_SUPPLICANT_CONF = pathlib.Path("/etc/wpa_supplicant/wpa_supplicant.conf")
 DEV_WPA_SUPPLICANT_CONF = REPO_ROOT / "setup" / "wpa_supplicant.conf.dev"
@@ -212,6 +212,11 @@ def apply_runtime_sequence(config, restart_web_config=False, transition_timeout_
     return transition
 
 
-if __name__ == "__main__":
+def main() -> int:
     result = apply_runtime_sequence(load_config())
     print(json.dumps(result))
+    return 0 if result.get("ok") else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

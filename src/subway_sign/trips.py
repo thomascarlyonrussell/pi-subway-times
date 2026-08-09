@@ -8,11 +8,11 @@ from typing import Any, Dict, List, Optional, Set
 import requests
 from google.transit import gtfs_realtime_pb2
 
-from config import load_runtime_config
-from gtfs_refresh import DISCOVERY_CATALOG_FILE, TRIP_RESOLUTION_INDEX_FILE, get_active_data_dir, get_lookup_data_dirs
+from subway_sign.config import load_runtime_config
+from subway_sign.gtfs_refresh import DISCOVERY_CATALOG_FILE, TRIP_RESOLUTION_INDEX_FILE, get_active_data_dir, get_lookup_data_dirs
 
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 def _to_csv_tokens(value):

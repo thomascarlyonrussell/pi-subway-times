@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "subway-sign"
+version = "0.1.0"
+description = "Adafruit 64x32 RGB LED matrix MTA subway arrival times display for Raspberry Pi"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+dependencies = [
+    "requests",
+    "toml",
+    "gtfs-realtime-bindings",
+    "flask",
+    "cryptography",
+    "Pillow",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[project.scripts]
+subway-display = "subway_sign.main:main"
+subway-web-config = "subway_sign.web_config:main"
+subway-gtfs-refresh = "subway_sign.gtfs_refresh:main"
+subway-gtfs-bootstrap = "subway_sign.gtfs_bootstrap:main"
+subway-emulator = "subway_sign.console_emulator:main"
+subway-vendor-symbols = "subway_sign.vendor_route_symbols:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/subway_sign"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

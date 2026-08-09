@@ -4,9 +4,9 @@ import logging
 import sys
 import time
 
-from bootstrap_status import BootstrapStatusRenderer
-from config import load_runtime_config
-from gtfs_refresh import TRIP_RESOLUTION_INDEX_FILE, GtfsStaticRefresher, get_active_data_dir
+from subway_sign.bootstrap_status import BootstrapStatusRenderer
+from subway_sign.config import load_runtime_config
+from subway_sign.gtfs_refresh import TRIP_RESOLUTION_INDEX_FILE, GtfsStaticRefresher, get_active_data_dir
 
 
 FAILURE_DISPLAY_SECONDS = 20

@@ -18,7 +18,7 @@ PHASE_LABELS = {
 class BootstrapStatusRenderer:
     def __init__(self, display_config: dict, project_root: Optional[pathlib.Path] = None):
         self.display_config = display_config
-        self.project_root = project_root or pathlib.Path(__file__).resolve().parent.parent
+        self.project_root = project_root or pathlib.Path(__file__).resolve().parents[2]
         self.matrix = None
         self.canvas = None
         self.graphics = None

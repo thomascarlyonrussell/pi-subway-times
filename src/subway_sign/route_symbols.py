@@ -9,7 +9,7 @@ try:
 except ImportError:  # pragma: no cover - absent on non-Pi desktop environment
     graphics = None
 
-from display import get_clamped_color
+from subway_sign.display import get_clamped_color
 
 try:
     from PIL import Image
@@ -255,7 +255,7 @@ def build_route_symbol_renderer(display_config: dict, route_font, text_font, log
     route_symbol_aliases = display_config.get("route_symbol_aliases", DEFAULT_ROUTE_SYMBOL_ALIASES)
     assets_dir = pathlib.Path(display_config.get("route_symbol_assets_dir", "assets/route_symbols"))
     if not assets_dir.is_absolute():
-        assets_dir = pathlib.Path(__file__).resolve().parent.parent / assets_dir
+        assets_dir = pathlib.Path(__file__).resolve().parents[2] / assets_dir
 
     backends: Dict[str, RouteSymbolBackend] = {
         "font": FontRouteSymbolBackend(route_font),
