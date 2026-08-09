@@ -115,11 +115,12 @@ echo "Setting up display service..."
 cat <<EOF | sudo tee /etc/systemd/system/subway-sign.service
 [Unit]
 Description=Subway Time Sign Display
-After=network-online.target gtfs-bootstrap.service
+After=network-online.target subway-splash.service gtfs-bootstrap.service
 Wants=network-online.target
 Requires=gtfs-bootstrap.service
 
 [Service]
+ExecStartPre=/usr/bin/systemctl stop subway-splash.service
 ExecStart=$PROJECT_DIR/.venv/bin/subway-display
 WorkingDirectory=$PROJECT_DIR
 Restart=always
@@ -138,13 +139,14 @@ echo "Setting up GTFS bootstrap service..."
 cat <<EOF | sudo tee /etc/systemd/system/gtfs-bootstrap.service
 [Unit]
 Description=Bootstrap GTFS data and show setup progress when needed
-After=network-online.target
+After=network-online.target subway-splash.service
 Wants=network-online.target
 Before=subway-sign.service
 
 [Service]
 Type=oneshot
 WorkingDirectory=$PROJECT_DIR
+ExecStartPre=/usr/bin/systemctl stop subway-splash.service
 ExecStart=$PROJECT_DIR/.venv/bin/subway-gtfs-bootstrap
 User=root
 Environment="PYTHONUNBUFFERED=1"

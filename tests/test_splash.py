@@ -1,3 +1,4 @@
+import pathlib
 import sys
 import types
 import unittest
@@ -104,6 +105,17 @@ class BootSplashValidation(unittest.TestCase):
             self.assertEqual(renderer.running, True)
             renderer.stop()
             self.assertIsNone(renderer.matrix)
+
+    def test_systemd_services_stop_splash_before_taking_the_matrix(self):
+        unit_path = pathlib.Path(__file__).resolve().parents[1] / "setup" / "subway-splash.service"
+        setup_script_path = unit_path.parent / "setup_subway_sign.sh"
+
+        unit_text = unit_path.read_text()
+        setup_script_text = setup_script_path.read_text()
+        self.assertIn("ExecStart=/home/subwaysign/project/.venv/bin/subway-splash", unit_text)
+        self.assertNotIn("--duration", unit_text)
+        self.assertNotIn("Conflicts=", unit_text)
+        self.assertEqual(setup_script_text.count("ExecStartPre=/usr/bin/systemctl stop subway-splash.service"), 2)
 
 
 if __name__ == "__main__":
