@@ -8,7 +8,7 @@ import sys
 import zipfile
 from unittest import mock
 
-from gtfs_refresh import DISCOVERY_CATALOG_FILE, GtfsSource, GtfsStaticRefresher, get_active_data_dir
+from gtfs_refresh import DISCOVERY_CATALOG_FILE, TRIP_RESOLUTION_INDEX_FILE, GtfsSource, GtfsStaticRefresher, get_active_data_dir
 
 
 PYTHON_DIR = pathlib.Path(__file__).resolve().parent
@@ -135,6 +135,17 @@ def run_dev_validation():
         assert catalog["stops"] == [
             {"stop_name": "7 Av", "stop_ids": ["D14N"], "route_ids": ["F"], "directions": ["N"]}
         ], "Catalog should preserve route and direction discovery data"
+        with (snapshot_dir / TRIP_RESOLUTION_INDEX_FILE).open("r", encoding="utf-8") as handle:
+            res_index = json.load(handle)
+        assert "trip.1" in res_index["trips"], "Trip resolution index should contain trip.1"
+        assert res_index["trips"]["trip.1"] == {
+            "route_id": "F",
+            "service_id": "WKD",
+            "trip_id": "trip.1",
+            "trip_headsign": "Uptown",
+            "start_time": "08:00:00",
+            "stop_ids": ["D14N"],
+        }, "Trip resolution index entry should match expected structure"
         assert not (snapshot_dir / "stop_times.txt").exists(), "Snapshots should omit unused stop_times.txt"
         assert not (snapshot_dir / "shapes.txt").exists(), "Snapshots should omit unused shapes.txt"
         with mock.patch("gtfs_refresh._state_files", return_value={"current": state_dir / "current.json"}):

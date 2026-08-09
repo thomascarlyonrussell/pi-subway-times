@@ -9,7 +9,7 @@ import requests
 from google.transit import gtfs_realtime_pb2
 
 from config import load_runtime_config
-from gtfs_refresh import DISCOVERY_CATALOG_FILE, get_active_data_dir, get_lookup_data_dirs
+from gtfs_refresh import DISCOVERY_CATALOG_FILE, TRIP_RESOLUTION_INDEX_FILE, get_active_data_dir, get_lookup_data_dirs
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -44,6 +44,17 @@ def _stop_direction(stop_id):
 
 def _trip_direction_token(trip_id):
     return str(trip_id or "").rsplit(".", 1)[-1].strip().upper()
+
+
+def _normalize_gtfs_time(time_str: str) -> str:
+    if not time_str:
+        return ""
+    cleaned = str(time_str).strip()
+    if len(cleaned) == 6 and cleaned.isdigit():
+        return f"{cleaned[0:2]}:{cleaned[2:4]}:{cleaned[4:6]}"
+    if len(cleaned) == 5 and cleaned.count(":") == 1:
+        return f"{cleaned}:00"
+    return cleaned
 
 
 def _load_discovery_catalog():
@@ -132,9 +143,36 @@ class Trips:
         self.last_success_epoch = 0.0
         self.last_fetch_epoch = 0.0
         self.last_fetch_error = ""
+        self.resolution_index = self._load_trip_resolution_index()
+        self.resolution_trips, self.resolution_route_start_map = self._build_resolution_maps(self.resolution_index)
 
     def _lookup_dirs(self):
         return get_lookup_data_dirs()
+
+    def _load_trip_resolution_index(self) -> Dict[str, Any]:
+        index = {"version": 1, "trips": {}}
+        lookup_dirs = self._lookup_dirs()
+        for lookup_dir in reversed(lookup_dirs):
+            index_path = lookup_dir / TRIP_RESOLUTION_INDEX_FILE
+            if index_path.exists():
+                try:
+                    with index_path.open("r", encoding="utf-8") as handle:
+                        data = json.load(handle)
+                        if isinstance(data.get("trips"), dict):
+                            index["trips"].update(data["trips"])
+                except Exception as exc:
+                    print(f"Warning: Failed to load resolution index from {index_path}: {exc}")
+        return index
+
+    def _build_resolution_maps(self, resolution_index: Dict[str, Any]):
+        by_trip_id = resolution_index.get("trips", {})
+        by_route_and_start = {}
+        for trip_id, trip in by_trip_id.items():
+            route_id = str(trip.get("route_id", "")).strip().upper()
+            start_time = _normalize_gtfs_time(str(trip.get("start_time", "")).strip())
+            if route_id and start_time:
+                by_route_and_start.setdefault((route_id, start_time), []).append(trip)
+        return by_trip_id, by_route_and_start
 
     def _load_direction_mapping_rules(self) -> List[Dict[str, Any]]:
         rules = []
@@ -267,21 +305,54 @@ class Trips:
 
     def get_trip_directions(self):
         trip_directions = {}
+        if hasattr(self, "resolution_trips") and self.resolution_trips:
+            for trip_id, trip in self.resolution_trips.items():
+                route_id = str(trip.get("route_id", "")).strip().upper()
+                if not self.routes or route_id in self.routes:
+                    trip_headsign = str(trip.get("trip_headsign", "")).strip()
+                    if trip_headsign:
+                        trip_directions[(route_id, _trip_direction_token(trip_id))] = trip_headsign
+
         lookup_dirs = self._lookup_dirs()
         for lookup_dir in reversed(lookup_dirs):
-            with open(lookup_dir / "trips.txt", "r", newline="", encoding="utf-8") as file:
+            trips_path = lookup_dir / "trips.txt"
+            if not trips_path.exists():
+                continue
+            with open(trips_path, "r", newline="", encoding="utf-8") as file:
                 reader = csv.DictReader(file)
                 for row in reader:
                     route_id = row.get("route_id", "").strip().upper()
                     if not self.routes or route_id in self.routes:
                         trip_id = row.get("trip_id", "").strip()
                         trip_headsign = row.get("trip_headsign", "").strip()
-                        trip_directions[(route_id, _trip_direction_token(trip_id))] = trip_headsign
+                        if trip_headsign:
+                            trip_directions[(route_id, _trip_direction_token(trip_id))] = trip_headsign
         return trip_directions
 
-    def _resolve_trip_direction(self, realtime_trip_id, trip_directions, route_id=""):
-        trip_token = _trip_direction_token(realtime_trip_id)
+    def _resolve_trip_direction(self, realtime_trip_id, trip_directions, route_id="", start_time="", stop_id=""):
         normalized_route_id = str(route_id or "").strip().upper()
+        normalized_stop_id = str(stop_id or "").strip()
+
+        if hasattr(self, "resolution_trips") and realtime_trip_id in self.resolution_trips:
+            headsign = str(self.resolution_trips[realtime_trip_id].get("trip_headsign", "")).strip()
+            if headsign:
+                return headsign
+
+        normalized_start_time = _normalize_gtfs_time(str(start_time or "").strip())
+        if normalized_route_id and normalized_start_time and hasattr(self, "resolution_route_start_map"):
+            candidates = self.resolution_route_start_map.get((normalized_route_id, normalized_start_time), [])
+            for candidate in candidates:
+                candidate_headsign = str(candidate.get("trip_headsign", "")).strip()
+                if not candidate_headsign:
+                    continue
+                c_stop_ids = candidate.get("stop_ids", [])
+                if normalized_stop_id in c_stop_ids:
+                    return candidate_headsign
+                base_stop_id = normalized_stop_id[:3] if len(normalized_stop_id) >= 3 else normalized_stop_id
+                if any(s.startswith(base_stop_id) for s in c_stop_ids):
+                    return candidate_headsign
+
+        trip_token = _trip_direction_token(realtime_trip_id)
         if normalized_route_id:
             static_headsign = trip_directions.get((normalized_route_id, trip_token))
         else:
@@ -362,10 +433,13 @@ class Trips:
                     if stop_time.stop_id not in stations:
                         continue
                     arrival_time = datetime.fromtimestamp(stop_time.arrival.time)
+                    realtime_start_time = str(getattr(entity_trip.trip, "start_time", "") or "").strip()
                     default_direction = self._resolve_trip_direction(
                         entity_trip.trip.trip_id,
                         trip_directions,
-                        route_id,
+                        route_id=route_id,
+                        start_time=realtime_start_time,
+                        stop_id=stop_time.stop_id,
                     )
                     trip = {
                         "line": route_id,

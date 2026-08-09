@@ -28,7 +28,7 @@ class BootstrapConditionValidation(unittest.TestCase):
     def test_catalog_snapshot_skips_bootstrap(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             snapshot_dir = pathlib.Path(temp_dir)
-            for file_name in ("routes.txt", "stops.txt", "trips.txt", "discovery_catalog.json"):
+            for file_name in ("routes.txt", "stops.txt", "trips.txt", "discovery_catalog.json", "trip_resolution_index.json"):
                 (snapshot_dir / file_name).write_text("data", encoding="utf-8")
             with mock.patch("gtfs_bootstrap.get_active_data_dir", return_value=snapshot_dir):
                 self.assertTrue(gtfs_bootstrap.has_valid_snapshot())

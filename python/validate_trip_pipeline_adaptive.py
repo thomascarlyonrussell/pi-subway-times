@@ -95,6 +95,53 @@ class TripPipelineAdaptiveValidation(unittest.TestCase):
 
         self.assertEqual(resolved, "Jamaica-179 St")
 
+    def test_direction_resolution_uses_trip_resolution_index(self):
+        cfg = self._build_config()
+        trips = Trips("7 Av", ["N"], ["G"], config=cfg)
+        trips.resolution_trips = {
+            "081400_G..N": {
+                "route_id": "G",
+                "service_id": "WKD",
+                "trip_id": "081400_G..N",
+                "trip_headsign": "Court Sq",
+                "start_time": "08:14:00",
+                "stop_ids": ["F20N", "G26N", "G22N"],
+            },
+            "082200_G..N": {
+                "route_id": "G",
+                "service_id": "WKD",
+                "trip_id": "082200_G..N",
+                "trip_headsign": "Bedford-Nostrand Avs",
+                "start_time": "08:22:00",
+                "stop_ids": ["F20N", "G26N"],
+            },
+        }
+        trips.resolution_route_start_map = {
+            ("G", "08:14:00"): [trips.resolution_trips["081400_G..N"]],
+            ("G", "08:22:00"): [trips.resolution_trips["082200_G..N"]],
+        }
+
+        exact_headsign = trips._resolve_trip_direction("081400_G..N", {})  # pylint: disable=protected-access
+        self.assertEqual(exact_headsign, "Court Sq")
+
+        matched_court_sq = trips._resolve_trip_direction(  # pylint: disable=protected-access
+            "111450_G..N",
+            {},
+            route_id="G",
+            start_time="08:14:00",
+            stop_id="G26N",
+        )
+        self.assertEqual(matched_court_sq, "Court Sq")
+
+        matched_bedford = trips._resolve_trip_direction(  # pylint: disable=protected-access
+            "112250_G..N",
+            {},
+            route_id="G",
+            start_time="082200",
+            stop_id="G26N",
+        )
+        self.assertEqual(matched_bedford, "Bedford-Nostrand Avs")
+
     def test_feed_group_resolution_covers_all_selected_route_families(self):
         cfg = self._build_config()
         routes = ["1", "A", "F", "G", "J", "L", "N", "SI"]

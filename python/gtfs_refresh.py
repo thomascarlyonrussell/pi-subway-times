@@ -31,6 +31,7 @@ CURRENT_STATE_FILE = "current.json"
 PREVIOUS_STATE_FILE = "previous.json"
 SNAPSHOTS_DIR_NAME = "snapshots"
 DISCOVERY_CATALOG_FILE = "discovery_catalog.json"
+TRIP_RESOLUTION_INDEX_FILE = "trip_resolution_index.json"
 DOWNLOAD_PROGRESS_BYTES = 1024 * 1024
 MERGE_PROGRESS_ROWS = 100000
 SQLITE_BATCH_SIZE = 10000
@@ -379,21 +380,34 @@ class GtfsStaticRefresher:
         if not catalog or not isinstance(catalog.get("routes"), list) or not isinstance(catalog.get("stops"), list):
             raise RuntimeError("GTFS discovery catalog is missing or invalid")
 
+        resolution_index = _load_json(dataset_dir / TRIP_RESOLUTION_INDEX_FILE)
+        if not resolution_index or not isinstance(resolution_index.get("trips"), dict):
+            raise RuntimeError("GTFS trip resolution index is missing or invalid")
+
     def _build_discovery_catalog(
         self,
         base_archive: pathlib.Path,
         supplement_archive: pathlib.Path,
         snapshot_dir: pathlib.Path,
     ) -> None:
-        LOG.info("Building compact GTFS discovery catalog")
+        LOG.info("Building compact GTFS discovery catalog and trip resolution index")
         self._status("stations", 0, 0, "routes")
         trip_to_route: Dict[str, str] = {}
-        for archive_path in (base_archive, supplement_archive):
-            for row in _iter_archive_csv_rows(archive_path, "trips.txt"):
+        static_trips: Dict[str, Dict[str, str]] = {}
+        with (snapshot_dir / "trips.txt").open("r", encoding="utf-8", newline="") as handle:
+            for row in csv.DictReader(handle):
                 trip_id = row.get("trip_id", "").strip()
                 route_id = row.get("route_id", "").strip().upper()
+                service_id = row.get("service_id", "").strip()
+                trip_headsign = row.get("trip_headsign", "").strip()
                 if trip_id and route_id:
                     trip_to_route[trip_id] = route_id
+                    static_trips[trip_id] = {
+                        "route_id": route_id,
+                        "service_id": service_id,
+                        "trip_id": trip_id,
+                        "trip_headsign": trip_headsign,
+                    }
 
         route_options = []
         known_routes = set()
@@ -414,9 +428,13 @@ class GtfsStaticRefresher:
         route_options.sort(key=lambda item: item["route_id"])
 
         stop_to_routes: Dict[str, set] = {}
+        stop_times_by_trip: Dict[str, List[tuple]] = {}
+        supplemented_trips: set = set()
+
         for archive_path in (supplement_archive, base_archive):
             source_name = archive_path.stem
-            LOG.info("Scanning %s stop times for discovery catalog", source_name)
+            is_supplement = (archive_path == supplement_archive)
+            LOG.info("Scanning %s stop times for discovery catalog and resolution index", source_name)
             self._status("stations", 0, 0, source_name)
             row_count = 0
             for row in _iter_archive_csv_rows(archive_path, "stop_times.txt"):
@@ -425,6 +443,19 @@ class GtfsStaticRefresher:
                 route_id = trip_to_route.get(trip_id)
                 if stop_id and route_id:
                     stop_to_routes.setdefault(stop_id, set()).add(route_id)
+
+                if trip_id in static_trips:
+                    if is_supplement:
+                        supplemented_trips.add(trip_id)
+                    elif trip_id in supplemented_trips:
+                        row_count += 1
+                        continue
+
+                    dep_time = row.get("departure_time", "").strip() or row.get("arrival_time", "").strip()
+                    seq_str = row.get("stop_sequence", "0").strip()
+                    seq = int(seq_str) if seq_str.isdigit() else 0
+                    stop_times_by_trip.setdefault(trip_id, []).append((seq, stop_id, dep_time))
+
                 row_count += 1
                 if row_count % MERGE_PROGRESS_ROWS == 0:
                     LOG.info("Scanned %s stop times from %s", f"{row_count:,}", source_name)
@@ -465,6 +496,29 @@ class GtfsStaticRefresher:
             {"version": 1, "generated_at_epoch": int(time.time()), "routes": route_options, "stops": stops},
         )
         LOG.info("Built discovery catalog with %s routes and %s stops", len(route_options), len(stops))
+
+        indexed_trips = {}
+        for trip_id, trip_info in static_trips.items():
+            st_list = stop_times_by_trip.get(trip_id)
+            if not st_list:
+                continue
+            st_list.sort(key=lambda item: item[0])
+            start_time = st_list[0][2]
+            stop_ids = [item[1] for item in st_list if item[1]]
+            indexed_trips[trip_id] = {
+                "route_id": trip_info["route_id"],
+                "service_id": trip_info["service_id"],
+                "trip_id": trip_id,
+                "trip_headsign": trip_info["trip_headsign"],
+                "start_time": start_time,
+                "stop_ids": stop_ids,
+            }
+
+        _save_json_atomic(
+            snapshot_dir / TRIP_RESOLUTION_INDEX_FILE,
+            {"version": 1, "generated_at_epoch": int(time.time()), "trips": indexed_trips},
+        )
+        LOG.info("Built trip resolution index with %s trips", len(indexed_trips))
 
     def _merge_archives(self, base_dir: pathlib.Path, supplement_dir: pathlib.Path, output_dir: pathlib.Path) -> None:
         output_dir.mkdir(parents=True, exist_ok=True)

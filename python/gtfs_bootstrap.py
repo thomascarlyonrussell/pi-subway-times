@@ -6,7 +6,7 @@ import time
 
 from bootstrap_status import BootstrapStatusRenderer
 from config import load_runtime_config
-from gtfs_refresh import GtfsStaticRefresher, get_active_data_dir
+from gtfs_refresh import TRIP_RESOLUTION_INDEX_FILE, GtfsStaticRefresher, get_active_data_dir
 
 
 FAILURE_DISPLAY_SECONDS = 20
@@ -17,7 +17,7 @@ def has_valid_snapshot() -> bool:
         snapshot_dir = get_active_data_dir()
     except RuntimeError:
         return False
-    return all((snapshot_dir / file_name).exists() for file_name in ("routes.txt", "stops.txt", "trips.txt", "discovery_catalog.json"))
+    return all((snapshot_dir / file_name).exists() for file_name in ("routes.txt", "stops.txt", "trips.txt", "discovery_catalog.json", TRIP_RESOLUTION_INDEX_FILE))
 
 
 def main() -> int:
