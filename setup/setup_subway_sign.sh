@@ -1,5 +1,24 @@
 #!/bin/bash
 
+# Parse command line flags
+SKIP_MATRIX=false
+FORCE_MATRIX=false
+NON_INTERACTIVE=false
+
+for arg in "$@"; do
+    case $arg in
+        --skip-matrix|--no-matrix)
+            SKIP_MATRIX=true
+            ;;
+        --force-matrix)
+            FORCE_MATRIX=true
+            ;;
+        --non-interactive|-y|--yes)
+            NON_INTERACTIVE=true
+            ;;
+    esac
+done
+
 # Update and upgrade the system
 echo "Updating system..."
 sudo apt update && sudo apt upgrade -y
@@ -32,17 +51,22 @@ cd "$PROJECT_DIR"
 uv sync
 
 # === UPDATE AND CONFIGURE RGB MATRIX BONNET ===
-echo "Installing and configuring Adafruit RGB Matrix Bonnet..."
-cd $PROJECT_DIR
-if [ ! -f "rgb-matrix.py" ]; then
-    curl -fLO https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/main/rgb-matrix.py
+if [ "$FORCE_MATRIX" = false ] && { [ "$SKIP_MATRIX" = true ] || python3 -c "import rgbmatrix" &>/dev/null || [ -d "$PROJECT_DIR/.rgb-matrix-installer-env" ]; }; then
+    echo "RGB Matrix driver/installer environment already exists. Skipping Adafruit matrix setup."
+    echo "  (Pass --force-matrix if you need to re-run Adafruit's installer)."
+else
+    echo "Installing and configuring Adafruit RGB Matrix Bonnet..."
+    cd "$PROJECT_DIR"
+    if [ ! -f "rgb-matrix.py" ]; then
+        curl -fLO https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/main/rgb-matrix.py
+    fi
+    python3 -m venv --system-site-packages "$PROJECT_DIR/.rgb-matrix-installer-env"
+    source "$PROJECT_DIR/.rgb-matrix-installer-env/bin/activate"
+    pip install --upgrade setuptools adafruit-python-shell click
+    sudo -E env PATH="$PATH" python3 rgb-matrix.py
+    deactivate
+    cd "$PROJECT_DIR"
 fi
-python3 -m venv --system-site-packages "$PROJECT_DIR/.rgb-matrix-installer-env"
-source "$PROJECT_DIR/.rgb-matrix-installer-env/bin/activate"
-pip install --upgrade setuptools adafruit-python-shell click
-sudo -E env PATH="$PATH" python3 rgb-matrix.py
-deactivate
-cd "$PROJECT_DIR"
 
 # Setup logging
 LOG_FILE="/var/log/subway_sign.log"
@@ -238,11 +262,15 @@ sudo chmod 664 /etc/matrix_config_default.json /etc/matrix_config.json
 sudo systemctl start subway-sign
 
 
-# Request user confirmation to reboot
-read -p "Setup complete. Do you want to reboot now? (y/n): " confirm
-if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
-    echo "Rebooting now..."
-    sudo reboot
+# Request user confirmation to reboot (skips prompt if non-interactive)
+if [ "$NON_INTERACTIVE" = true ] || [ ! -t 0 ]; then
+    echo "Setup complete. Non-interactive run finished."
 else
-    echo "Reboot canceled. Please reboot manually to apply changes."
+    read -p "Setup complete. Do you want to reboot now? (y/n): " confirm
+    if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
+        echo "Rebooting now..."
+        sudo reboot
+    else
+        echo "Reboot canceled. Please reboot manually to apply changes."
+    fi
 fi
