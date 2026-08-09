@@ -36,6 +36,30 @@ Static GTFS snapshots under `/var/lib/subway-sign/gtfs-static` contain the stop 
 `setup/matrix_config_default.json` is installed as `/etc/matrix_config_default.json`
 for provisioning and factory reset.
 
+## MTA Data References
+
+Consult the following external sources when changing GTFS ingestion, real-time trip
+processing, or MTA-derived assets. They are references, not content to copy into this
+repository:
+
+- [GTFS Schedule Reference](https://gtfs.org/documentation/schedule/reference/)
+  defines the standard static-feed schema, file and field requirements, identifier
+  relationships, service calendars, and schedule-time semantics. Consult it before
+  changing static snapshot parsing or stop, route, trip, and stop-time lookups.
+- [GTFS Realtime Reference](https://gtfs.org/documentation/realtime/reference/)
+  defines the standard protobuf feed model and semantics for trip updates,
+  stop-time predictions, schedule relationships, vehicle positions, and alerts.
+  Consult it before changing real-time feed parsing or arrival-time interpretation.
+- [MTA Developer Resources](https://www.mta.info/developers) is the authoritative
+  operational index for subway static-GTFS downloads, GTFS-RT feed access and NYCT
+  protobuf extensions, feed terms and conditions, schedule-transition guidance, and
+  available line-color or other data assets.
+- [MTA GTFS Documentation](https://github.com/nymta/gtfs-documentation) supplements
+  the standard GTFS and GTFS-RT specifications with MTA-specific field behavior,
+  feed conventions, processing guidance, examples, and known limitations. Check it
+  after the canonical references when interpreting a feed or deciding whether an
+  observed value is an MTA extension.
+
 Development-only utilities live in `scripts/` and are neither deployed with the
 sign services nor installed as commands:
 
