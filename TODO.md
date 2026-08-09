@@ -2,7 +2,8 @@
 
 ## Phase 0 - Baseline Confidence
 - [x] `audit-existing-completed-todos`
-  - Validate already-completed work (autostart, logging, current font coverage) before new implementation.
+  - [x] Validate already-completed work (autostart, logging, current font coverage) before new implementation.
+  - [x] Raspberry Pi reboot verified: `subway-sign`, `web-config`, GTFS bootstrap, and refresh timer start from corrected systemd units.
 
 ## Phase 1 - Foundation (Must Go First)
 - [ ] `unify-config-sources-and-settings-flow`
@@ -21,6 +22,7 @@
 ## Phase 3 - Data Reliability and Feed Coverage
 - [ ] `automate-gtfs-static-data-refresh`
   - [x] Add scheduled static GTFS refresh with rollback/transition safeguards.
+  - [x] Raspberry Pi integration: promoted GTFS snapshot exists under `/var/lib/subway-sign/gtfs-static`, `gtfs-bootstrap` skips a valid snapshot, and `gtfs-static-refresh.timer` is enabled.
   - [ ] Remaining validation task: run `python3 python/validate_gtfs_refresh.py --with-pi-checks` on Raspberry Pi hardware and verify `gtfs-static-refresh.timer` / `subway-sign` runtime stability.
 - [ ] `improve-trip-direction-mapping-and-fetch-cadence`
   - [x] Expand realtime feed group coverage for additional lines.
@@ -36,9 +38,9 @@
   - [x] Fill full route symbol coverage in phased batches.
   - [x] Keep this separate but aligned with rendering abstraction decisions.
   - [ ] Raspberry Pi verification checklist (before marking complete):
-    - Confirm local vendored symbols exist: `ls assets/route_symbols/*.png` (expect 29 files).
-    - Restart display service after asset/config updates: `sudo systemctl restart subway-sign`.
-    - Check service health/logs: `sudo systemctl status subway-sign` and `sudo journalctl -u subway-sign -n 100 --no-pager`.
+    - [x] Confirm local vendored symbols exist: `ls assets/route_symbols/*.png` (29 files present; each is `10x10 RGBA`).
+    - [x] Restart display service after asset/config updates: `sudo systemctl restart subway-sign`.
+    - [x] Check service health/logs: `sudo systemctl status subway-sign` and `sudo journalctl -u subway-sign -n 100 --no-pager`.
     - Verify alias routes render expected bullets (not text fallback): `5X,6X,7X,FS,FX,GS,SI`.
     - Verify unsupported/missing asset behavior remains deterministic (fallback without crash).
     - Confirm no frame stutter/flicker for at least 5 minutes of runtime.
