@@ -8,10 +8,11 @@ import time
 
 from cryptography.fernet import Fernet
 
+from subway_sign.config import load_runtime_config
+
 
 LOG = logging.getLogger(__name__)
 
-CONFIG_FILE = os.environ.get("MATRIX_CONFIG_PATH", "/etc/matrix_config.json")
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 WPA_SUPPLICANT_CONF = pathlib.Path("/etc/wpa_supplicant/wpa_supplicant.conf")
@@ -95,13 +96,6 @@ def decrypt_password(enc_password):
     return cipher.decrypt(token.encode("utf-8")).decode("utf-8")
 
 
-def load_config():
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r", encoding="utf-8") as handle:
-            return json.load(handle)
-    return {"wifi": {}}
-
-
 def run_systemctl(action, service):
     if service not in ALLOWED_SERVICES:
         raise ValueError(f"Service {service} is not in the approved service allowlist")
@@ -147,6 +141,17 @@ def _wait_for_wifi(target_ssid, timeout_sec):
 def _restore_ap_services():
     run_systemctl("start", "hostapd")
     run_systemctl("start", "dnsmasq")
+
+
+def reset_to_ap_onboarding():
+    wpa_path = _resolve_wpa_path()
+    if wpa_path.exists():
+        wpa_path.unlink()
+
+    run_systemctl("stop", "subway-sign")
+    run_systemctl("restart", "wpa_supplicant")
+    _restore_ap_services()
+    return {"ok": True, "state": STATE_AP_ACTIVE}
 
 
 def transition_from_ap_to_client(ssid, password, timeout_sec=90):
@@ -213,7 +218,7 @@ def apply_runtime_sequence(config, restart_web_config=False, transition_timeout_
 
 
 def main() -> int:
-    result = apply_runtime_sequence(load_config())
+    result = apply_runtime_sequence(load_runtime_config())
     print(json.dumps(result))
     return 0 if result.get("ok") else 1
 

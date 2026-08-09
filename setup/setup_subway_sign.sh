@@ -231,76 +231,16 @@ sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 sudo iptables -A INPUT -j DROP
 
 
-# Setup default configuration file
-echo "Setting up default configuration..."
-cat <<EOF | sudo tee /etc/matrix_config_default.json
-{
-    "wifi": {
-        "ssid": "YOUR_WIFI_SSID",
-        "password": "YOUR_WIFI_PASSWORD"
-    },
-    "display": {
-        "brightness": 100,
-        "mta_directions": "N",
-        "refresh_time_delay": 30,
-        "rotate_trip_delay": 4,
-        "screen_refresh_interval": 2,
-        "minimum_arrival_minutes": 2,
-        "maximum_arrival_minutes": 99,
-        "led_rows": 32,
-        "led_columns": 64,
-        "led_chain_length": 1,
-        "led_parallel": 1,
-        "led_hardware_mapping": "adafruit-hat-pwm",
-        "led_gpio_slowdown": 2,
-        "line_direction_max_length": 10,
-        "line_direction_max_pixels": 42
-    },
-    "feed": {
-        "mta_routes": "F,G",
-        "mta_stop": "7 Av",
-        "mta_feed_base_url": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2F"
-    },
-    "gtfs_static_refresh": {
-        "enabled": true,
-        "request_timeout_sec": 30,
-        "transition_window_hours": 168,
-        "snapshot_retention_count": 2,
-        "service_action": "restart",
-        "alert_command": "",
-        "sources": [
-            [
-                "base",
-                "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip"
-            ],
-            [
-                "supplemented",
-                "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_supplemented.zip"
-            ]
-        ]
-    }
-}
-EOF
+# Install the package-owned default template and preserve configured devices.
+echo "Installing default configuration template..."
+sudo install -o root -g root -m 644 "$PROJECT_DIR/setup/matrix_config_default.json" /etc/matrix_config_default.json
 
-# Copy the default settings as active settings (if no settings exist)
+# Copy the default settings as active settings only for an unconfigured device.
 if [ ! -f "/etc/matrix_config.json" ]; then
     sudo cp /etc/matrix_config_default.json /etc/matrix_config.json
-else
-    sudo python3 - <<'PY'
-import json
-
-path = "/etc/matrix_config.json"
-with open(path, encoding="utf-8") as config_file:
-    config = json.load(config_file)
-
-config.setdefault("display", {})["led_hardware_mapping"] = "adafruit-hat-pwm"
-with open(path, "w", encoding="utf-8") as config_file:
-    json.dump(config, config_file, indent=4)
-    config_file.write("\n")
-PY
 fi
-sudo chown subwaysign:subwaysign /etc/matrix_config_default.json /etc/matrix_config.json
-sudo chmod 664 /etc/matrix_config_default.json /etc/matrix_config.json
+sudo chown root:subwaysign /etc/matrix_config.json
+sudo chmod 664 /etc/matrix_config.json
 
 # Starting subway-sign runs the visual bootstrap first when no valid snapshot exists.
 sudo systemctl start subway-sign

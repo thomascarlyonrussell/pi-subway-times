@@ -13,7 +13,7 @@ context: |
   
   Key conventions:
     - Display service must run as root (LED driver requirement)
-    - Dual config sources: settings.toml (canonical) + /etc/matrix_config.json (web UI)
+    - Canonical active config: /etc/matrix_config.json; installed default template: /etc/matrix_config_default.json
     - GTFS static files checked in at data/*.txt, should be refreshed periodically
     - No automated tests; manual verification expected
     - Log output to /var/log/subway_sign.log (perms: 666)
@@ -28,7 +28,7 @@ context: |
   
   Known pitfalls:
     - Root privilege required for LED access; non-root execution fails
-    - Dual config problem: TOML vs JSON sync issues
+    - Existing Pi installations must have canonical JSON before upgrade; TOML is unsupported
     - Static GTFS data may become stale; needs dynamic fetch strategy
     - Incomplete font support (only F/G lines implemented)
     - No error recovery if MTA API is down
@@ -42,6 +42,6 @@ rules:
     - Flag any changes requiring root privilege or service restart
   tasks:
     - Break tasks into max 2-hour chunks
-    - Group related file changes (e.g., TOML + JSON config updates) in same task
+    - Group related config/schema changes in the same task
     - Call out systemd service restart requirements
     - Remind about testing on dev box vs actual Pi hardware

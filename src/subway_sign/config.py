@@ -4,12 +4,7 @@ import logging
 import os
 import pathlib
 import tempfile
-from typing import Any, Dict, List, Optional
-
-try:
-    import toml
-except ImportError:  # pragma: no cover - optional compatibility dependency
-    toml = None
+from typing import Any, Dict, List, Optional, Tuple
 
 
 LOG = logging.getLogger(__name__)
@@ -17,9 +12,7 @@ LOG = logging.getLogger(__name__)
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 CANONICAL_CONFIG_PATH = pathlib.Path("/etc/matrix_config.json")
 DEFAULT_CANONICAL_CONFIG_PATH = pathlib.Path("/etc/matrix_config_default.json")
-DEV_CANONICAL_CONFIG_PATH = REPO_ROOT / "setup" / "matrix_config.json"
 DEV_DEFAULT_CONFIG_PATH = REPO_ROOT / "setup" / "matrix_config_default.json"
-LEGACY_TOML_CONFIG_PATH = REPO_ROOT / "settings.toml"
 
 RETIRED_GTFS_STATIC_SOURCE_URLS = {
     "https://web.mta.info/developers/data/nyct/subway/google_transit.zip": "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip",
@@ -97,24 +90,10 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
 }
 
 
-LEGACY_TOML_TO_CANONICAL = {
-    "MTA_ROUTES": ("feed", "mta_routes"),
-    "MTA_STOP": ("feed", "mta_stop"),
-    "MTA_DIRECTIONS": ("display", "mta_directions"),
-    "REFRESH_TIME_DELAY": ("display", "refresh_time_delay"),
-    "ROTATE_TRIP_DELAY": ("display", "rotate_trip_delay"),
-    "SCREEN_REFRESH_INTERVAL": ("display", "screen_refresh_interval"),
-    "MINIMUM_ARRIVAL_MINUTES": ("display", "minimum_arrival_minutes"),
-    "MAXIMUM_ARRIVAL_MINUTES": ("display", "maximum_arrival_minutes"),
-    "LED_ROWS": ("display", "led_rows"),
-    "LED_COLUMNS": ("display", "led_columns"),
-    "LED_CHAIN_LENGTH": ("display", "led_chain_length"),
-    "LED_PARALLEL": ("display", "led_parallel"),
-    "LED_HARDWARE_MAPPING": ("display", "led_hardware_mapping"),
-    "LED_GPIO_SLOWDOWN": ("display", "led_gpio_slowdown"),
-    "LINE_DIRECTION_MAX_LENGTH": ("display", "line_direction_max_length"),
-    "LINE_DIRECTION_MAX_PIXELS": ("display", "line_direction_max_pixels"),
-    "MTA_FEED_BASE_URL": ("feed", "mta_feed_base_url"),
+OWNER_EDITABLE_FIELDS: Dict[str, Tuple[str, ...]] = {
+    "wifi": ("ssid", "password"),
+    "display": ("brightness", "mta_directions"),
+    "feed": ("mta_routes", "mta_stop"),
 }
 
 
@@ -132,16 +111,17 @@ def _deep_merge(base: Dict[str, Any], incoming: Dict[str, Any]) -> Dict[str, Any
     return merged
 
 
-def _runtime_config_path() -> pathlib.Path:
+def get_runtime_config_path() -> pathlib.Path:
     env_path = os.environ.get("MATRIX_CONFIG_PATH")
     if env_path:
         return pathlib.Path(env_path)
-    if CANONICAL_CONFIG_PATH.exists():
-        return CANONICAL_CONFIG_PATH
-    return DEV_CANONICAL_CONFIG_PATH
+    return CANONICAL_CONFIG_PATH
 
 
-def _default_config_path() -> pathlib.Path:
+def get_default_config_path() -> pathlib.Path:
+    env_path = os.environ.get("MATRIX_CONFIG_DEFAULT_PATH")
+    if env_path:
+        return pathlib.Path(env_path)
     if DEFAULT_CANONICAL_CONFIG_PATH.exists():
         return DEFAULT_CANONICAL_CONFIG_PATH
     return DEV_DEFAULT_CONFIG_PATH
@@ -375,45 +355,25 @@ def _load_json_config(path: pathlib.Path) -> Dict[str, Any]:
         return json.load(handle)
 
 
-def _load_toml_compat(path: pathlib.Path) -> Dict[str, Any]:
-    if toml is None:
-        raise RuntimeError("Legacy TOML compatibility requested but 'toml' package is not installed")
-    with path.open("r", encoding="utf-8") as handle:
-        legacy = toml.load(handle)
-
-    migrated: Dict[str, Any] = copy.deepcopy(DEFAULT_CONFIG)
-    for legacy_key, mapped in LEGACY_TOML_TO_CANONICAL.items():
-        if legacy_key not in legacy:
-            continue
-        section, field = mapped
-        migrated[section][field] = legacy[legacy_key]
-    return migrated
-
-
-def load_runtime_config(allow_toml_compat: bool = True) -> Dict[str, Any]:
-    config_path = _runtime_config_path()
+def load_runtime_config() -> Dict[str, Any]:
+    config_path = get_runtime_config_path()
     if config_path.exists():
         return validate_config(_load_json_config(config_path))
 
-    default_path = _default_config_path()
+    if os.environ.get("MATRIX_CONFIG_PATH"):
+        raise FileNotFoundError(f"Canonical config not found at explicitly selected path: {config_path}")
+
+    default_path = get_default_config_path()
     if default_path.exists():
-        LOG.warning("Canonical config missing at %s. Falling back to defaults at %s", config_path, default_path)
+        LOG.warning("Canonical config missing at %s. Falling back to installed defaults at %s", config_path, default_path)
         return validate_config(_load_json_config(default_path))
 
-    if allow_toml_compat and LEGACY_TOML_CONFIG_PATH.exists():
-        LOG.warning(
-            "Canonical config missing at %s; using legacy TOML compatibility path at %s. Migration required.",
-            config_path,
-            LEGACY_TOML_CONFIG_PATH,
-        )
-        return validate_config(_load_toml_compat(LEGACY_TOML_CONFIG_PATH))
-
-    LOG.warning("No config files found. Falling back to embedded defaults.")
+    LOG.warning("No canonical or default config files found. Falling back to embedded defaults.")
     return validate_config(copy.deepcopy(DEFAULT_CONFIG))
 
 
 def save_canonical_config(config: Dict[str, Any], path: Optional[pathlib.Path] = None) -> pathlib.Path:
-    target = path or _runtime_config_path()
+    target = path or get_runtime_config_path()
     target.parent.mkdir(parents=True, exist_ok=True)
     normalized = validate_config(config)
 

@@ -8,14 +8,20 @@ from functools import wraps
 
 import logging
 
-from subway_sign.config import load_runtime_config, save_canonical_config, validate_config
+from subway_sign.config import (
+    get_default_config_path,
+    get_runtime_config_path,
+    load_runtime_config,
+    save_canonical_config,
+    validate_config,
+)
 from subway_sign.trips import (
     get_discoverable_routes,
     get_discoverable_stops,
     get_discovery_metadata,
     validate_route_stop_selection,
 )
-from subway_sign.wifi_manager import apply_runtime_sequence, encrypt_password, run_systemctl
+from subway_sign.wifi_manager import apply_runtime_sequence, encrypt_password, reset_to_ap_onboarding
 
 
 LOG_FILE = "/var/log/subway_sign.log"
@@ -41,18 +47,9 @@ def log_event(level, message):
     logging.log(getattr(logging, level.upper(), logging.INFO), message)
 
 template_path = pathlib.Path(__file__).resolve().parents[2] / "templates"
-config_path = pathlib.Path(os.environ.get("MATRIX_CONFIG_PATH", "/etc/matrix_config.json"))
-config_path_default = pathlib.Path(os.environ.get("MATRIX_CONFIG_DEFAULT_PATH", "/etc/matrix_config_default.json"))
-if not config_path.parent.exists():
-    config_path = pathlib.Path(__file__).resolve().parents[2] / "setup" / "matrix_config.json"
-if not config_path_default.parent.exists():
-    config_path_default = pathlib.Path(__file__).resolve().parents[2] / "setup" / "matrix_config_default.json"
-
-CONFIG_FILE = config_path.absolute()
-CONFIG_PATH_DEFAULT = config_path_default.absolute()
+CONFIG_FILE = get_runtime_config_path()
+CONFIG_PATH_DEFAULT = get_default_config_path()
 TEMPLATE_FILE = template_path.absolute()
-os.environ["MATRIX_CONFIG_PATH"] = str(CONFIG_FILE)
-os.environ["MATRIX_CONFIG_DEFAULT_PATH"] = str(CONFIG_PATH_DEFAULT)
 
 app = Flask(__name__, template_folder=TEMPLATE_FILE)
 
@@ -146,8 +143,15 @@ if os.environ.get("WEB_CONFIG_SECURE_COOKIE", "0") == "1":
 SETUP_PIN = _resolve_setup_pin()
 
 
+def _runtime_apply_enabled():
+    configured = os.environ.get("SUBWAY_RUNTIME_APPLY_ENABLED")
+    if configured is not None:
+        return configured == "1"
+    return os.name == "posix"
+
+
 def load_config():
-    return load_runtime_config(allow_toml_compat=True)
+    return load_runtime_config()
 
 
 def save_config(config):
@@ -194,23 +198,9 @@ def _apply_form(config, form_data):
 
     config["display"]["brightness"] = _to_int(form_data, "brightness", config["display"]["brightness"])
     config["display"]["mta_directions"] = form_data.get("mta_directions", config["display"]["mta_directions"])
-    config["display"]["refresh_time_delay"] = _to_int(form_data, "refresh_time_delay", config["display"]["refresh_time_delay"])
-    config["display"]["rotate_trip_delay"] = _to_int(form_data, "rotate_trip_delay", config["display"]["rotate_trip_delay"])
-    config["display"]["screen_refresh_interval"] = _to_int(form_data, "screen_refresh_interval", config["display"]["screen_refresh_interval"])
-    config["display"]["minimum_arrival_minutes"] = _to_int(form_data, "minimum_arrival_minutes", config["display"]["minimum_arrival_minutes"])
-    config["display"]["maximum_arrival_minutes"] = _to_int(form_data, "maximum_arrival_minutes", config["display"]["maximum_arrival_minutes"])
-    config["display"]["led_rows"] = _to_int(form_data, "led_rows", config["display"]["led_rows"])
-    config["display"]["led_columns"] = _to_int(form_data, "led_columns", config["display"]["led_columns"])
-    config["display"]["led_chain_length"] = _to_int(form_data, "led_chain_length", config["display"]["led_chain_length"])
-    config["display"]["led_parallel"] = _to_int(form_data, "led_parallel", config["display"]["led_parallel"])
-    config["display"]["led_hardware_mapping"] = form_data.get("led_hardware_mapping", config["display"]["led_hardware_mapping"])
-    config["display"]["led_gpio_slowdown"] = _to_int(form_data, "led_gpio_slowdown", config["display"].get("led_gpio_slowdown", 2))
-    config["display"]["line_direction_max_length"] = _to_int(form_data, "line_direction_max_length", config["display"]["line_direction_max_length"])
-    config["display"]["line_direction_max_pixels"] = _to_int(form_data, "line_direction_max_pixels", config["display"].get("line_direction_max_pixels", 40))
 
     config["feed"]["mta_routes"] = _extract_routes(form_data, config)
     config["feed"]["mta_stop"] = form_data.get("mta_stop", config["feed"]["mta_stop"]).strip()
-    config["feed"]["mta_feed_base_url"] = form_data.get("mta_feed_base_url", config["feed"]["mta_feed_base_url"])
 
     validate_route_stop_selection(
         config["feed"]["mta_routes"],
@@ -222,6 +212,10 @@ def _apply_form(config, form_data):
 
 
 def apply_runtime_changes(restart_web_config=False):
+    if not _runtime_apply_enabled():
+        log_event("info", "Skipping Wi-Fi and service changes outside the Pi runtime.")
+        return False
+
     log_event("info", "Applying updated settings: reconfigure wifi and restart services as needed.")
     result = apply_runtime_sequence(
         config=load_config(),
@@ -267,12 +261,18 @@ def reset_to_defaults():
     
     log_event("warning", "Factory reset initiated via web interface.")
 
-    if os.path.exists(CONFIG_PATH_DEFAULT):
+    if CONFIG_PATH_DEFAULT.exists():
         try:
-            with open(CONFIG_PATH_DEFAULT, "r", encoding="utf-8") as default_file:
+            with CONFIG_PATH_DEFAULT.open("r", encoding="utf-8") as default_file:
                 config = validate_config(json.load(default_file))
+            config["wifi"]["ssid"] = ""
+            config["wifi"]["password"] = ""
             save_canonical_config(config, CONFIG_FILE)
-            log_event("info", "Factory settings restored.")
+            if _runtime_apply_enabled():
+                reset_to_ap_onboarding()
+                log_event("info", "Factory settings restored and AP onboarding started.")
+            else:
+                log_event("info", "Factory settings restored; AP onboarding skipped outside the Pi runtime.")
         except Exception as exc:
             log_event("error", f"Factory reset failed: {exc}")
             return jsonify({"message": f"Factory reset failed: {exc}"}), 500
@@ -280,11 +280,9 @@ def reset_to_defaults():
         log_event("error", "Default settings file missing!")
         return jsonify({"message": "Default settings file missing!"}), 500
 
-    # Restart the application
-    log_event("info", "Restarting system after factory reset...")
-    run_systemctl("restart", "subway-sign")
-
-    return jsonify({"message": "Factory reset complete. Restarting..."})
+    if _runtime_apply_enabled():
+        return jsonify({"message": "Factory reset complete. AP onboarding started."})
+    return jsonify({"message": "Factory reset complete. AP onboarding was skipped locally."})
 
 
 @app.route("/auth/login", methods=["POST"])

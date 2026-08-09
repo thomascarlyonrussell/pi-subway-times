@@ -36,11 +36,15 @@ Provisioning SHALL prepare shared log file and configure AP-mode host services.
 - **THEN** `/etc/hostapd/hostapd.conf` is written and `hostapd` plus `dnsmasq` are enabled
 
 ### Requirement: Setup Script Seeds Matrix Config Defaults
-Provisioning SHALL write `/etc/matrix_config_default.json` and copy it to `/etc/matrix_config.json` when active file does not exist.
+Provisioning SHALL install `/etc/matrix_config_default.json` from the version-controlled default template and copy it to `/etc/matrix_config.json` only when the active file does not exist.
 
 #### Scenario: Default config bootstrap
 - **WHEN** `/etc/matrix_config.json` is missing
-- **THEN** setup copies `/etc/matrix_config_default.json` into place as active config
+- **THEN** setup installs the default template and copies it into place as active config
+
+#### Scenario: Existing active config is preserved
+- **WHEN** `/etc/matrix_config.json` exists
+- **THEN** setup does not modify its contents
 
 ### Requirement: Runtime Operations Include Service Restarts and AP Teardown
 Runtime operations SHALL use service restart and stop control for display and network mode transitions.
@@ -48,13 +52,6 @@ Runtime operations SHALL use service restart and stop control for display and ne
 #### Scenario: Web save operation runtime control
 - **WHEN** config UI saves updates
 - **THEN** runtime operations include `systemctl restart subway-sign` and AP service stop calls
-
-### Requirement: Known Operational Deviations Are Preserved in Baseline
-Baseline ops behavior SHALL preserve existing mismatches for explicit future remediation.
-
-#### Scenario: Service naming and path mismatch
-- **WHEN** setup and runtime files are compared
-- **THEN** baseline records that setup uses `/etc/matrix_config*.json` while web runtime currently uses `setup/matrix_config*.json`
 
 ### Requirement: Startup Conditionally Bootstraps GTFS Data
 The system SHALL start the live display immediately when a valid active snapshot exists and SHALL complete visual GTFS bootstrap before starting the display when one does not.

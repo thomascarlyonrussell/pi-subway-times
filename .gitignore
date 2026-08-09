@@ -17,3 +17,4 @@ data/
 
 # Device-local secrets created during provisioning.
 setup/encryption.key
+setup/wpa_supplicant.conf.dev

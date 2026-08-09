@@ -32,8 +32,9 @@ Key code lives in `src/subway_sign/`:
 | `gtfs_bootstrap.py` | GTFS static status and bootstrap check (`subway-gtfs-bootstrap`).
 
 Static GTFS snapshots under `/var/lib/subway-sign/gtfs-static` contain the stop and route lookup data. Provisioning downloads the initial snapshot before starting the display service.
-`settings.toml` is the canonical configuration; a JSON copy (`/etc/matrix_config.json`)
-is written by the web UI.
+`/etc/matrix_config.json` is the sole active device configuration. The checked-in
+`setup/matrix_config_default.json` is installed as `/etc/matrix_config_default.json`
+for provisioning and factory reset.
 
 Development-only utilities live in `scripts/` and are neither deployed with the
 sign services nor installed as commands:
@@ -97,10 +98,9 @@ Use `systemctl {start,stop,status}` to control them.  Logs are accessible via
 
 **Configuration**:
 
-- Primary source: `settings.toml` in repo root or `/etc/matrix_config.json` if
-discharged via the web UI.
-- Web UI writes JSON to `/etc/matrix_config.json` and restarts the display service.
-- Keep TOML & JSON in sync when editing manually.
+- Active source: `/etc/matrix_config.json`.
+- Default template: `/etc/matrix_config_default.json`; provisioning creates the active file from it only when no active file exists.
+- The web UI writes canonical JSON and restarts the display service. It exposes Wi-Fi, brightness, routes, stop, and direction only.
 
 ---
 
@@ -108,7 +108,7 @@ discharged via the web UI.
 
 1. **Refresh route-symbol assets**: use `scripts/vendor_route_symbols.py` with a
   manually obtained `louh/mta-subway-bullets` checkout; see `assets/route_symbols/README.md`.
-2. **Change refresh interval**: edit `settings.toml`, e.g. `update_interval_sec`.
+2. **Change refresh interval**: update the managed `display.refresh_time_delay` value in `/etc/matrix_config.json` through an administrator deployment workflow.
 3. **Debug real-time feed parsing**: sprinkle `print` statements or use
    `uv run python -m pdb -m subway_sign.trips` to replay a saved GTFS-realtime protobuf.
 4. **Simulate AP mode**: remove Wi‑Fi credentials and run `uv run subway-web-config` –
@@ -121,8 +121,7 @@ discharged via the web UI.
 - **Root requirement**: the display code must run with elevated privileges;
   attempts to run as non‑root will fail during matrix initialization.  Be
   cautious when editing systemd units.
-- **Dual configuration formats**: avoid editing only one source; the web UI
-  overwrites `settings.toml` when it restarts the service.
+- **Single configuration format**: TOML is unsupported. Existing devices must have valid `/etc/matrix_config.json` before upgrading.
 - **Static GTFS snapshots** are device-local runtime data and are not checked in.
   Provisioning must complete an initial refresh before the sign or emulator can read
   stop, route, and trip metadata.

@@ -230,6 +230,26 @@ def test_discovery_and_save_flow():
     assert not failures, f"Failures in discovery/save flow: {failures}"
 
 
+def test_explicit_missing_config_path_does_not_fallback(monkeypatch, tmp_path):
+    missing_path = tmp_path / "missing.json"
+    monkeypatch.setenv("MATRIX_CONFIG_PATH", str(missing_path))
+
+    try:
+        load_runtime_config()
+    except FileNotFoundError as exc:
+        assert str(missing_path) in str(exc)
+    else:
+        raise AssertionError("Expected missing explicit canonical config path to fail")
+
+
+def test_shipped_default_template_validates():
+    template_path = REPO_ROOT / "setup" / "matrix_config_default.json"
+    with template_path.open("r", encoding="utf-8") as handle:
+        template = json.load(handle)
+
+    assert validate_config(template)["feed"]["mta_stop"] == template["feed"]["mta_stop"]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate unified config flow.")
     parser.add_argument(

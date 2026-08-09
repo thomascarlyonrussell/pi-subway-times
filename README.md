@@ -88,7 +88,8 @@ sudo reboot
 `/etc/matrix_config.json` is the single source of truth.
 `/etc/matrix_config_default.json` is the rollback/default template.
 
-Legacy `settings.toml` is compatibility-only during migration and is no longer the preferred runtime source.
+`settings.toml` is not supported. Before upgrading an older device, create
+`/etc/matrix_config.json` with its current settings.
 
 #### Store Wifi Hotspot Settings
 
@@ -104,7 +105,7 @@ sudo reboot
 - On boot, check if the device is connected to WiFi.
 - If WiFi is not connected, enable AP mode and start the Flask web server.
 - Users connect to the SubwaySign-Setup network and access the web UI at http://192.168.4.1:5000.
-- After entering their details, the app atomically saves canonical JSON, restarts `subway-sign`, reconfigures Wi-Fi, and tears down AP services.
+- After entering their details, the app atomically saves canonical JSON, restarts `subway-sign`, reconfigures Wi-Fi, and tears down AP services. Factory reset clears Wi-Fi credentials and returns the device to AP onboarding.
 
 
 ### Rotate Logs

@@ -4,7 +4,7 @@ This baseline documents the current, as-implemented behavior of the project as o
 
 ## Capabilities
 
-- `config-contracts`: Defines active configuration sources and current TOML/JSON drift.
+- `config-contracts`: Defines canonical JSON configuration loading and validation.
 - `trip-data-pipeline`: Defines static GTFS + realtime feed parsing, filtering, and retry behavior.
 - `display-runtime`: Defines polling cadence, render cadence, matrix layout, and fatal error behavior.
 - `web-config-control-plane`: Defines Flask config UI behavior, persistence model, and service controls.
@@ -20,7 +20,7 @@ This baseline documents the current, as-implemented behavior of the project as o
 
 ## Follow-Up Change Candidates
 
-- Unify configuration source of truth (`settings.toml` vs matrix JSON paths).
+- Maintain the canonical JSON configuration source and its validated schema.
 - Add authentication/authorization for web configuration endpoints.
 - Add robust display fallback behavior when trip fetch returns `None`.
 - Add test harnesses for parser and route/station selection behavior.
