@@ -118,7 +118,7 @@ class ConsoleEmulator:
             "",
         ]
         display_cfg = self.config.get("display", {})
-        max_pixels = display_cfg.get("line_direction_max_pixels", 40)
+        max_pixels = display_cfg.get("line_direction_max_pixels", 42)
         max_chars = display_cfg.get("line_direction_max_length", 10)
         for index, row in enumerate(rows, start=1):
             dir_text = truncate_to_pixel_width(

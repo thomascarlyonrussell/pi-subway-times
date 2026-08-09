@@ -63,37 +63,37 @@ class DisplayValidation(unittest.TestCase):
 
     def test_truncate_to_pixel_width_wide_station_names(self):
         # "WASHINGTON SQ": W(7)+A(6)+S(6)+H(6)+I(2)+N(6)+G(6)+T(5)+O(6)+N(6)+ (2)+S(6)+Q(6) = 71px
-        truncated = truncate_to_pixel_width(self.font, "WASHINGTON SQ", max_pixels=40)
+        truncated = truncate_to_pixel_width(self.font, "WASHINGTON SQ", max_pixels=42)
         width = get_string_width(self.font, truncated)
-        self.assertLessEqual(width, 40)
-        # "WASHIN" = 7+6+6+6+2+6 = 33px. "WASHING" = 33+6 = 39px <= 40px. "WASHINGT" = 39+5 = 44px > 40px
+        self.assertLessEqual(width, 42)
+        # "WASHIN" = 7+6+6+6+2+6 = 33px. "WASHING" = 33+6 = 39px <= 42px. "WASHINGT" = 39+5 = 44px > 42px
         self.assertEqual(truncated, "WASHING")
 
     def test_truncate_to_pixel_width_narrow_vs_wide_characters(self):
         # "III III III III" -> narrow chars ('I'=2, ' '=2)
-        # "III III III III" = 12*'I' (24) + 3*' ' (6) = 30px <= 40px -> no truncation needed
+        # "III III III III" = 12*'I' (24) + 3*' ' (6) = 30px <= 42px -> no truncation needed
         narrow_text = "III III III III"
-        truncated_narrow = truncate_to_pixel_width(self.font, narrow_text, max_pixels=40)
+        truncated_narrow = truncate_to_pixel_width(self.font, narrow_text, max_pixels=42)
         self.assertEqual(truncated_narrow, narrow_text)
-        self.assertLessEqual(get_string_width(self.font, truncated_narrow), 40)
+        self.assertLessEqual(get_string_width(self.font, truncated_narrow), 42)
 
         # "WWW WWW WWW WWW" -> wide chars ('W'=7, ' '=2)
-        # "WWW WWW" = 6*'W' (42) + 1*' ' (2) = 44px > 40px
+        # "WWW WWW" = 6*'W' (42) + 1*' ' (2) = 44px > 42px
         wide_text = "WWW WWW WWW WWW"
-        truncated_wide = truncate_to_pixel_width(self.font, wide_text, max_pixels=40)
-        self.assertLessEqual(get_string_width(self.font, truncated_wide), 40)
+        truncated_wide = truncate_to_pixel_width(self.font, wide_text, max_pixels=42)
+        self.assertLessEqual(get_string_width(self.font, truncated_wide), 42)
         self.assertNotEqual(truncated_wide, wide_text)
 
     def test_truncate_to_pixel_width_respects_max_chars(self):
         # Even if pixel width allows 10 chars, max_chars=5 caps it to 5 chars
         text = "III III III III"
-        truncated = truncate_to_pixel_width(self.font, text, max_pixels=40, max_chars=5)
+        truncated = truncate_to_pixel_width(self.font, text, max_pixels=42, max_chars=5)
         self.assertEqual(truncated, "III I")
         self.assertEqual(len(truncated), 5)
 
     def test_truncate_to_pixel_width_edge_cases(self):
-        self.assertEqual(truncate_to_pixel_width(self.font, "", max_pixels=40), "")
-        self.assertEqual(truncate_to_pixel_width(self.font, None, max_pixels=40), "")
+        self.assertEqual(truncate_to_pixel_width(self.font, "", max_pixels=42), "")
+        self.assertEqual(truncate_to_pixel_width(self.font, None, max_pixels=42), "")
         self.assertEqual(truncate_to_pixel_width(self.font, "TEST", max_pixels=0), "TEST")
         self.assertEqual(truncate_to_pixel_width(self.font, "TEST", max_pixels=-10), "TEST")
 

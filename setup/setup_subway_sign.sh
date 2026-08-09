@@ -223,7 +223,7 @@ cat <<EOF | sudo tee /etc/matrix_config_default.json
         "led_hardware_mapping": "adafruit-hat",
         "led_gpio_slowdown": 2,
         "line_direction_max_length": 10,
-        "line_direction_max_pixels": 40
+        "line_direction_max_pixels": 42
     },
     "feed": {
         "mta_routes": "F,G",

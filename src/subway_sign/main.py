@@ -64,7 +64,7 @@ def main() -> int:
     LED_HARDWARE_MAPPING = display_config["led_hardware_mapping"]
     LED_GPIO_SLOWDOWN = int(display_config.get("led_gpio_slowdown", display_config.get("led_pwm_slowdown", 2)))
     LINE_DIRECTION_MAX_LENGTH = display_config["line_direction_max_length"]
-    LINE_DIRECTION_MAX_PIXELS = display_config.get("line_direction_max_pixels", 40)
+    LINE_DIRECTION_MAX_PIXELS = display_config.get("line_direction_max_pixels", 42)
 
     MTA_ROUTES = [route.strip() for route in feed_config["mta_routes"].split(",") if route.strip()]
     MTA_STOP = feed_config["mta_stop"]
