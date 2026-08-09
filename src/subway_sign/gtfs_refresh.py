@@ -36,6 +36,7 @@ TRIP_RESOLUTION_INDEX_FILE = "trip_resolution_index.json"
 DOWNLOAD_PROGRESS_BYTES = 1024 * 1024
 MERGE_PROGRESS_ROWS = 100000
 SQLITE_BATCH_SIZE = 10000
+ACTIVE_SNAPSHOT_FRESHNESS_SECONDS = 24 * 60 * 60
 
 BASE_ARCHIVE_NAME = "google_transit.zip"
 SUPPLEMENT_ARCHIVE_NAME = "google_transit_supplemented.zip"
@@ -608,7 +609,44 @@ class GtfsStaticRefresher:
         if self.alert_command:
             subprocess.run(self.alert_command, shell=True, check=False, capture_output=True, text=True)
 
+    def _fresh_active_dataset_id(self, now_epoch: Optional[float] = None) -> Optional[str]:
+        try:
+            current_state = _load_json(self.current_file)
+            if not isinstance(current_state, dict):
+                return None
+
+            dataset_id = current_state.get("dataset_id")
+            activated_at_epoch = current_state.get("activated_at_epoch")
+            if not isinstance(dataset_id, str) or not dataset_id:
+                return None
+            if isinstance(activated_at_epoch, bool) or not isinstance(activated_at_epoch, (int, float)):
+                return None
+
+            now = time.time() if now_epoch is None else now_epoch
+            age_seconds = now - activated_at_epoch
+            if 0 <= age_seconds < ACTIVE_SNAPSHOT_FRESHNESS_SECONDS:
+                return dataset_id
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            LOG.debug("Could not read active GTFS snapshot freshness state: %s", exc)
+        return None
+
     def refresh(self, force: bool = False, dry_run: bool = False) -> Dict:
+        if not force:
+            fresh_dataset_id = self._fresh_active_dataset_id()
+            if fresh_dataset_id:
+                LOG.info(
+                    "Skipping GTFS static refresh because active dataset %s was activated within the last 24 hours.",
+                    fresh_dataset_id,
+                )
+                return {
+                    "ok": True,
+                    "promoted": False,
+                    "skipped": True,
+                    "reason": "active_snapshot_fresh",
+                    "dataset_id": fresh_dataset_id,
+                    "downloads": [],
+                }
+
         refresh_started_at = time.monotonic()
         self._status("setup", 0, 0, "data")
         self.state_dir.mkdir(parents=True, exist_ok=True)

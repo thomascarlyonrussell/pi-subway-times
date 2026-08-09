@@ -54,3 +54,22 @@ The system SHALL not retain `stop_times.txt` or `shapes.txt` in a promoted GTFS 
 - **WHEN** GTFS refresh promotes a snapshot
 - **THEN** the snapshot SHALL retain runtime lookup files and its discovery catalog but SHALL not contain `stop_times.txt` or `shapes.txt`
 
+### Requirement: Recent Active Snapshots Skip Non-Forced Refreshes
+The system SHALL skip a non-forced static GTFS refresh when `current.json` identifies an active snapshot with a valid `activated_at_epoch` less than 24 hours before the refresh attempt. The skip SHALL occur before creating refresh staging data or downloading a source archive.
+
+#### Scenario: Refresh request within 24 hours of activation
+- **WHEN** a non-forced refresh starts and the active snapshot was activated less than 24 hours earlier
+- **THEN** the system SHALL return a successful skip result that identifies the active dataset and shall not download either GTFS archive
+
+#### Scenario: Refresh request at or after the 24-hour boundary
+- **WHEN** a non-forced refresh starts and the active snapshot was activated 24 or more hours earlier
+- **THEN** the system SHALL continue with the normal static GTFS refresh flow
+
+#### Scenario: Missing or invalid activation timestamp
+- **WHEN** a non-forced refresh starts and the active snapshot state is missing, malformed, or future-dated
+- **THEN** the system SHALL continue with the normal static GTFS refresh flow
+
+#### Scenario: Forced refresh bypasses freshness guard
+- **WHEN** a refresh starts with the force option
+- **THEN** the system SHALL continue with the normal static GTFS refresh flow regardless of active snapshot age
+

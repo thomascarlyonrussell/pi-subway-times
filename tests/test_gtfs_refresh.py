@@ -5,6 +5,8 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 import zipfile
 from unittest import mock
 
@@ -91,8 +93,10 @@ def run_dev_validation():
 
         # Monkey patch requests download by copying local zip files.
         original_download = refresher._download_source
+        download_calls = []
 
         def _local_download(source, target_dir):
+            download_calls.append(source.name)
             zip_path = pathlib.Path(source.url.replace("file://", ""))
             staged = target_dir / f"{source.name}.zip"
             shutil.copy2(zip_path, staged)
@@ -152,13 +156,30 @@ def run_dev_validation():
             phases = {event[0] for event in status_recorder.events}
             assert {"setup", "stations", "finalize", "ready"}.issubset(phases), "Refresh should publish setup status phases"
 
-            # Test unchanged feed bypass (without force)
+            fresh_res = refresher.refresh(force=False, dry_run=False)
+            assert fresh_res == {
+                "ok": True,
+                "promoted": False,
+                "skipped": True,
+                "reason": "active_snapshot_fresh",
+                "dataset_id": first["dataset_id"],
+                "downloads": [],
+            }, "Fresh active snapshots should skip before download"
+            assert download_calls == ["base", "supplemented"], "Fresh snapshots should avoid archive downloads"
+
+            current_state_path = state_dir / "current.json"
+            current_state = json.loads(current_state_path.read_text(encoding="utf-8"))
+            current_state["activated_at_epoch"] = int(time.time()) - (24 * 60 * 60)
+            current_state_path.write_text(json.dumps(current_state), encoding="utf-8")
+
             unchanged_res = refresher.refresh(force=False, dry_run=False)
             assert unchanged_res.get("ok") and unchanged_res.get("unchanged"), "Unchanged feeds should be bypassed when force=False"
+            assert download_calls == ["base", "supplemented", "base", "supplemented"], "Stale snapshots should download archives"
 
         _build_archive(supplemented_zip, "00FF00")
         second = refresher.refresh(force=True, dry_run=False)
         assert second.get("ok"), f"Second promotion failed: {second}"
+        assert download_calls == ["base", "supplemented", "base", "supplemented", "base", "supplemented"], "Forced refreshes should download archives"
 
         rollback = refresher.rollback()
         assert rollback.get("ok"), f"Rollback failed: {rollback}"
@@ -173,6 +194,9 @@ def run_dev_validation():
                 "promotion_success",
                 "second_promotion_success",
                 "rollback_success",
+                "fresh_snapshot_skips_downloads",
+                "stale_snapshot_downloads_archives",
+                "forced_refresh_downloads_archives",
                 "unchanged_feed_bypassed",
                 "failure_preserves_previous_dataset",
                 "missing_active_snapshot_fails_clearly",
@@ -218,6 +242,27 @@ def run_pi_checks():
 def test_gtfs_refresh_dev_validation():
     result = run_dev_validation()
     assert result.get("ok") is True, f"GTFS refresh validation failed: {result}"
+
+
+def test_invalid_active_snapshot_state_does_not_skip_refresh():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        state_dir = pathlib.Path(temp_dir)
+        refresher = GtfsStaticRefresher(
+            state_dir=state_dir,
+            sources=[GtfsSource("base", "https://example.com/base.zip")],
+            timeout_sec=10,
+            transition_window_hours=24,
+            snapshot_retention_count=2,
+            service_action="none",
+        )
+        refresher._download_source = mock.Mock(side_effect=RuntimeError("download attempted"))
+
+        for state in ("not json", json.dumps({"dataset_id": "future", "activated_at_epoch": time.time() + 1})):
+            (state_dir / "current.json").write_text(state, encoding="utf-8")
+            result = refresher.refresh()
+            assert not result["ok"]
+            refresher._download_source.assert_called_once()
+            refresher._download_source.reset_mock()
 
 
 def main() -> int:
