@@ -94,10 +94,20 @@ def main() -> int:
     matrix = RGBMatrix(options=options)
     canvas = matrix.CreateFrameCanvas()
 
+    # Render an immediate frame so handover from boot splash is seamless before initial data fetch.
+    canvas.Clear()
+    init_rows = _normalize_for_render([])
+    for idx, baseline in enumerate([10, 20, 30]):
+        color_val = _parse_color_value(init_rows[idx].get("route_color"))
+        color = get_clamped_color(color_val)
+        route_symbol_renderer.render(canvas, init_rows[idx].get("line", ""), 0, baseline, color_val)
+        graphics.DrawText(canvas, font, 11, baseline - 1, color, "CONNECTING...")
+        graphics.DrawText(canvas, font, 55, baseline - 1, color, "--")
+    canvas = matrix.SwapOnVSync(canvas)
+
     # Main Loop
     start_time = time.monotonic()
     rotate_time = start_time
-    time.sleep(1)
     TRIP_JSON = trips.fetch_trip_data()
     last_success_time = time.monotonic() if TRIP_JSON else 0.0
     current_refresh_delay = max(1, int(getattr(trips, "last_refresh_interval_sec", REFRESH_TIME_DELAY)))

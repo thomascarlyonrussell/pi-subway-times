@@ -34,7 +34,7 @@ def get_string_width(font, text):
     return sum(get_char_width(font, char) for char in text)
 
 
-def truncate_to_pixel_width(font, text, max_pixels=42 max_chars=None):
+def truncate_to_pixel_width(font, text, max_pixels=42, max_chars=None):
     if not text:
         return ""
     if max_chars is not None and max_chars > 0 and len(text) > max_chars:

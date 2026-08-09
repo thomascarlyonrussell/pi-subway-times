@@ -23,6 +23,7 @@ Key code lives in `src/subway_sign/`:
 | File | Role |
 |------|------|
 | `main.py` | Main loop / screen rendering (`subway-display`).
+| `splash.py` | Early boot splash screen renderer (`subway-splash`).
 | `trips.py` | GTFS static parsing & MTA real‑time feed processing.
 | `display.py` | Color helpers.
 | `web_config.py` | Flask-based web UI for configuration (`subway-web-config`).
@@ -81,6 +82,7 @@ out the `rgbmatrix` imports.
 
 **Services**:
 
+- `subway-splash.service` – early boot splash screen (`MTA SUBWAY / BOOTING...`).
 - `subway-sign.service` – display daemon (runs as root!).
 - `web-config.service` – Flask UI for editing Wi‑Fi and display settings.
 - `gtfs-bootstrap.service` – GTFS bootstrap check.

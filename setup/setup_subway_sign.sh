@@ -80,6 +80,30 @@ sudo mkdir -p /var/lib/subway-sign/gtfs-static
 sudo chown root:root /var/lib/subway-sign/gtfs-static
 sudo chmod 755 /var/lib/subway-sign/gtfs-static
 
+# Configure systemd service for opening boot splash screen
+echo "Setting up boot splash service..."
+cat <<EOF | sudo tee /etc/systemd/system/subway-splash.service
+[Unit]
+Description=Subway Sign Opening Boot Splash Screen
+DefaultDependencies=no
+After=local-fs.target
+Before=gtfs-bootstrap.service subway-sign.service network-online.target
+Conflicts=gtfs-bootstrap.service subway-sign.service
+
+[Service]
+Type=simple
+WorkingDirectory=$PROJECT_DIR
+ExecStart=$PROJECT_DIR/.venv/bin/subway-splash
+Restart=no
+User=root
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=sysinit.target multi-user.target
+EOF
+
+sudo systemctl enable subway-splash
+
 # Configure systemd service for subway sign display
 echo "Setting up display service..."
 cat <<EOF | sudo tee /etc/systemd/system/subway-sign.service

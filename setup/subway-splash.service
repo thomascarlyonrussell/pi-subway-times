@@ -1,0 +1,17 @@
+[Unit]
+Description=Subway Sign Opening Boot Splash Screen
+DefaultDependencies=no
+After=local-fs.target
+Before=gtfs-bootstrap.service subway-sign.service network-online.target
+Conflicts=gtfs-bootstrap.service subway-sign.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/subwaysign/project
+ExecStart=/home/subwaysign/project/.venv/bin/subway-splash
+Restart=no
+User=root
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=sysinit.target multi-user.target

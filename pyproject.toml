@@ -33,6 +33,7 @@ subway-display = "subway_sign.main:main"
 subway-web-config = "subway_sign.web_config:main"
 subway-gtfs-refresh = "subway_sign.gtfs_refresh:main"
 subway-gtfs-bootstrap = "subway_sign.gtfs_bootstrap:main"
+subway-splash = "subway_sign.splash:main"
 subway-emulator = "subway_sign.console_emulator:main"
 subway-vendor-symbols = "subway_sign.vendor_route_symbols:main"
 
