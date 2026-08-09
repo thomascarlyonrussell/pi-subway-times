@@ -68,6 +68,12 @@ else
     cd "$PROJECT_DIR"
 fi
 
+# The soldered GPIO4-to-GPIO18 bridge enables the Bonnet's quality mode.
+# It conflicts with onboard audio, so maintain the same blacklist that the
+# Adafruit installer writes when its Quality option is selected.
+echo "Disabling onboard audio for RGB Matrix Bonnet quality mode..."
+echo "blacklist snd_bcm2835" | sudo tee /etc/modprobe.d/blacklist-rgb-matrix.conf > /dev/null
+
 # Setup logging
 LOG_FILE="/var/log/subway_sign.log"
 if [ ! -f "$LOG_FILE" ]; then
@@ -244,7 +250,7 @@ cat <<EOF | sudo tee /etc/matrix_config_default.json
         "led_columns": 64,
         "led_chain_length": 1,
         "led_parallel": 1,
-        "led_hardware_mapping": "adafruit-hat",
+        "led_hardware_mapping": "adafruit-hat-pwm",
         "led_gpio_slowdown": 2,
         "line_direction_max_length": 10,
         "line_direction_max_pixels": 42
@@ -278,6 +284,19 @@ EOF
 # Copy the default settings as active settings (if no settings exist)
 if [ ! -f "/etc/matrix_config.json" ]; then
     sudo cp /etc/matrix_config_default.json /etc/matrix_config.json
+else
+    sudo python3 - <<'PY'
+import json
+
+path = "/etc/matrix_config.json"
+with open(path, encoding="utf-8") as config_file:
+    config = json.load(config_file)
+
+config.setdefault("display", {})["led_hardware_mapping"] = "adafruit-hat-pwm"
+with open(path, "w", encoding="utf-8") as config_file:
+    json.dump(config, config_file, indent=4)
+    config_file.write("\n")
+PY
 fi
 sudo chown subwaysign:subwaysign /etc/matrix_config_default.json /etc/matrix_config.json
 sudo chmod 664 /etc/matrix_config_default.json /etc/matrix_config.json

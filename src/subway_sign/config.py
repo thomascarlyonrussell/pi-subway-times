@@ -52,7 +52,7 @@ DEFAULT_CONFIG: Dict[str, Dict[str, Any]] = {
         "led_columns": 64,
         "led_chain_length": 1,
         "led_parallel": 1,
-        "led_hardware_mapping": "adafruit-hat",
+        "led_hardware_mapping": "adafruit-hat-pwm",
         "led_gpio_slowdown": 2,
         "line_direction_max_length": 10,
         "line_direction_max_pixels": 42,
