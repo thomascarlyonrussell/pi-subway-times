@@ -115,6 +115,14 @@ class DisplayValidation(unittest.TestCase):
             all(any(isinstance(target, ast.Name) and target.id == "canvas" for target in swap.targets) for swap in swaps)
         )
 
+    def test_main_renders_starting_status_before_loading_gtfs_indexes(self):
+        main_path = pathlib.Path(__file__).resolve().parents[1] / "src" / "subway_sign" / "main.py"
+        source = main_path.read_text(encoding="utf-8")
+
+        self.assertLess(source.index('"STARTING..."'), source.index("trips = Trips("))
+        self.assertIn("Display startup: STARTING frame rendered", source)
+        self.assertIn("Display startup: CONNECTING frame rendered; fetching MTA arrivals", source)
+
 
 if __name__ == "__main__":
     unittest.main()

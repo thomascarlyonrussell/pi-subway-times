@@ -4,8 +4,12 @@ import time
 import logging
 
 LOG_FILE = "/var/log/subway_sign.log"
-logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG,
-                    format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.FileHandler(LOG_FILE), logging.StreamHandler()],
+)
+LOG = logging.getLogger(__name__)
 
 # get current project root path
 app_dir = pathlib.Path(__file__).resolve().parents[2]
@@ -47,7 +51,16 @@ def _parse_color_value(raw_color):
         return int("FFFFFF", 16)
 
 
+def _render_status_frame(matrix, canvas, graphics_module, font, message: str):
+    canvas.Clear()
+    color = graphics_module.Color(0, 200, 255)
+    graphics_module.DrawText(canvas, font, 0, 10, color, "MTA SUBWAY")
+    graphics_module.DrawText(canvas, font, 0, 21, graphics_module.Color(255, 255, 255), message)
+    return matrix.SwapOnVSync(canvas)
+
+
 def main() -> int:
+    LOG.info("Display startup: loading configuration")
     # Load configuration from canonical source.
     config = load_runtime_config()
     display_config = config["display"]
@@ -70,17 +83,11 @@ def main() -> int:
     MTA_STOP = feed_config["mta_stop"]
     MTA_DIRECTIONS = [direction.strip() for direction in display_config["mta_directions"].split(",") if direction.strip()]
 
-    # Load data once at startup
-    trips = Trips(MTA_STOP, MTA_DIRECTIONS, MTA_ROUTES, config=config)
-
-    # Load fonts before starting the hardware refresh thread.
+    # Load the basic text font, then take over the matrix before slower data setup.
     font = graphics.Font()
     font.LoadFont(str(app_dir / 'fonts' / "10-Adobe-Helvetica.bdf"))
-    route_font = graphics.Font()
-    route_font.LoadFont(str(app_dir / 'fonts' / "mta.bdf"))
-    route_symbol_renderer = build_route_symbol_renderer(display_config, route_font, font, logging.getLogger(__name__))
 
-    # Initialize the RGBMatrix.
+    LOG.info("Display startup: initializing RGB matrix")
     options = RGBMatrixOptions()
     options.rows = LED_ROWS
     options.cols = LED_COLUMNS
@@ -93,8 +100,16 @@ def main() -> int:
     options.drop_privileges = False
     matrix = RGBMatrix(options=options)
     canvas = matrix.CreateFrameCanvas()
+    canvas = _render_status_frame(matrix, canvas, graphics, font, "STARTING...")
+    LOG.info("Display startup: STARTING frame rendered")
 
-    # Render an immediate frame so handover from boot splash is seamless before initial data fetch.
+    LOG.info("Display startup: loading GTFS indexes")
+    trips = Trips(MTA_STOP, MTA_DIRECTIONS, MTA_ROUTES, config=config)
+    route_font = graphics.Font()
+    route_font.LoadFont(str(app_dir / 'fonts' / "mta.bdf"))
+    route_symbol_renderer = build_route_symbol_renderer(display_config, route_font, font, LOG)
+
+    # Show a feed-specific status before the first live MTA request.
     canvas.Clear()
     init_rows = _normalize_for_render([])
     for idx, baseline in enumerate([10, 20, 30]):
@@ -104,12 +119,14 @@ def main() -> int:
         graphics.DrawText(canvas, font, 11, baseline - 1, color, "CONNECTING...")
         graphics.DrawText(canvas, font, 55, baseline - 1, color, "--")
     canvas = matrix.SwapOnVSync(canvas)
+    LOG.info("Display startup: CONNECTING frame rendered; fetching MTA arrivals")
 
     # Main Loop
     start_time = time.monotonic()
     rotate_time = start_time
     TRIP_JSON = trips.fetch_trip_data()
     last_success_time = time.monotonic() if TRIP_JSON else 0.0
+    LOG.info("Display startup: initial MTA fetch completed with %s arrival rows", len(TRIP_JSON or []))
     current_refresh_delay = max(1, int(getattr(trips, "last_refresh_interval_sec", REFRESH_TIME_DELAY)))
     bottom_row_index = 2
 
@@ -166,7 +183,7 @@ def main() -> int:
             time.sleep(SCREEN_REFRESH_INTERVAL)
 
     except Exception as e:
-        logging.error(f"Display Error: {e}")
+        LOG.exception("Display Error: %s", e)
         raise
 
 
