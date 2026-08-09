@@ -138,6 +138,29 @@ class TripPipelineAdaptiveValidation(unittest.TestCase):
         )
         self.assertEqual(matched_bedford, "Bedford-Nostrand Avs")
 
+    def test_direction_resolution_does_not_match_opposite_directional_platform(self):
+        cfg = self._build_config()
+        trips = Trips("7 Av", ["N"], ["G"], config=cfg)
+        trips.resolution_trips = {}
+        trips.resolution_route_start_map = {
+            ("G", "17:36:30"): [
+                {
+                    "trip_headsign": "Church Ave",
+                    "stop_ids": ["F24S"],
+                }
+            ]
+        }
+
+        resolved = trips._resolve_trip_direction(  # pylint: disable=protected-access
+            "105650_G..N",
+            {},
+            route_id="G",
+            start_time="17:36:30",
+            stop_id="F24N",
+        )
+
+        self.assertEqual(resolved, "North")
+
     def test_feed_group_resolution_covers_all_selected_route_families(self):
         cfg = self._build_config()
         routes = ["1", "A", "F", "G", "J", "L", "N", "SI"]

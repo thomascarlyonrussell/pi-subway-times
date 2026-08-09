@@ -349,7 +349,7 @@ class Trips:
                 if normalized_stop_id in c_stop_ids:
                     return candidate_headsign
                 base_stop_id = normalized_stop_id[:3] if len(normalized_stop_id) >= 3 else normalized_stop_id
-                if any(s.startswith(base_stop_id) for s in c_stop_ids):
+                if not _stop_direction(normalized_stop_id) and any(s.startswith(base_stop_id) for s in c_stop_ids):
                     return candidate_headsign
 
         trip_token = _trip_direction_token(realtime_trip_id)
