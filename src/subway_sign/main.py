@@ -162,7 +162,7 @@ def main() -> int:
             color = graphics.Color(255, 255, 255)
             graphics.DrawLine(canvas, 0, 31, pixels_on, 31, color)
 
-            matrix.SwapOnVSync(canvas)
+            canvas = matrix.SwapOnVSync(canvas)
             time.sleep(SCREEN_REFRESH_INTERVAL)
 
     except Exception as e:

@@ -1,5 +1,6 @@
 """Unit tests for display color clamping and pixel width text truncation."""
 
+import ast
 import pathlib
 import unittest
 
@@ -96,6 +97,23 @@ class DisplayValidation(unittest.TestCase):
         self.assertEqual(truncate_to_pixel_width(self.font, None, max_pixels=42), "")
         self.assertEqual(truncate_to_pixel_width(self.font, "TEST", max_pixels=0), "TEST")
         self.assertEqual(truncate_to_pixel_width(self.font, "TEST", max_pixels=-10), "TEST")
+
+    def test_main_retains_canvas_returned_by_matrix_swap(self):
+        main_path = pathlib.Path(__file__).resolve().parents[1] / "src" / "subway_sign" / "main.py"
+        module = ast.parse(main_path.read_text(encoding="utf-8"))
+        swaps = [
+            statement
+            for statement in ast.walk(module)
+            if isinstance(statement, ast.Assign)
+            and isinstance(statement.value, ast.Call)
+            and isinstance(statement.value.func, ast.Attribute)
+            and statement.value.func.attr == "SwapOnVSync"
+        ]
+
+        self.assertGreaterEqual(len(swaps), 2)
+        self.assertTrue(
+            all(any(isinstance(target, ast.Name) and target.id == "canvas" for target in swap.targets) for swap in swaps)
+        )
 
 
 if __name__ == "__main__":
