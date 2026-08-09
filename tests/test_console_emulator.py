@@ -1,5 +1,6 @@
 import copy
 import importlib
+import importlib.util
 import os
 import pathlib
 import sys
@@ -8,7 +9,20 @@ import unittest
 from unittest import mock
 
 from subway_sign.config import DEFAULT_CONFIG, load_runtime_config, save_canonical_config, validate_config
-from subway_sign.console_emulator import ConsoleEmulator, normalize_rows
+
+
+SCRIPT_PATH = pathlib.Path(__file__).resolve().parents[1] / "scripts" / "console_emulator.py"
+def load_console_emulator():
+    spec = importlib.util.spec_from_file_location("console_emulator", SCRIPT_PATH)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+console_emulator = load_console_emulator()
+ConsoleEmulator = console_emulator.ConsoleEmulator
+normalize_rows = console_emulator.normalize_rows
 
 
 class StubTrips:
@@ -44,8 +58,7 @@ class ConsoleEmulatorValidation(unittest.TestCase):
                 self.assertEqual(load_runtime_config()["feed"]["mta_stop"], "Alternate Station")
 
     def test_import_does_not_load_physical_display_modules(self):
-        sys.modules.pop("subway_sign.console_emulator", None)
-        importlib.import_module("subway_sign.console_emulator")
+        load_console_emulator()
         self.assertNotIn("rgbmatrix", sys.modules)
 
     def test_normalization_and_third_row_rotation(self):

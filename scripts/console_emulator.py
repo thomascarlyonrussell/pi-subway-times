@@ -62,7 +62,7 @@ class ConsoleEmulator:
 
         try:
             latest_trips = self.trips.fetch_trip_data()
-        except Exception as exc:  # The console remains usable if a custom pipeline fails.
+        except Exception as exc:
             latest_trips = None
             self.last_fetch_error = str(exc)
 

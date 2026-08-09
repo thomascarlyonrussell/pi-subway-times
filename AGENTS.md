@@ -30,12 +30,16 @@ Key code lives in `src/subway_sign/`:
 | `wifi_manager.py` | Wi‑Fi credential management & AP mode logic.
 | `gtfs_refresh.py` | Automated GTFS static data fetcher (`subway-gtfs-refresh`).
 | `gtfs_bootstrap.py` | GTFS static status and bootstrap check (`subway-gtfs-bootstrap`).
-| `console_emulator.py` | Terminal console emulator for sign (`subway-emulator`).
-| `vendor_route_symbols.py` | SVG route symbol vendor script (`subway-vendor-symbols`).
 
 Static GTFS snapshots under `/var/lib/subway-sign/gtfs-static` contain the stop and route lookup data. Provisioning downloads the initial snapshot before starting the display service.
 `settings.toml` is the canonical configuration; a JSON copy (`/etc/matrix_config.json`)
 is written by the web UI.
+
+Development-only utilities live in `scripts/` and are neither deployed with the
+sign services nor installed as commands:
+
+- `console_emulator.py` renders a terminal preview without LED hardware.
+- `vendor_route_symbols.py` normalizes manually obtained route-symbol PNGs.
 
 ---
 
@@ -73,12 +77,12 @@ uv run pytest
 ```bash
 sudo .venv/bin/subway-display
 # or console emulator without hardware:
-uv run subway-emulator
+uv run python scripts/console_emulator.py
 ```
 
 `sudo` is required when the matrix bonnets are attached; the driver requires
-root permissions.  On a dev box without hardware, run `uv run subway-emulator` or stub
-out the `rgbmatrix` imports.
+root permissions. On a dev box without hardware, run
+`uv run python scripts/console_emulator.py`.
 
 **Services**:
 
@@ -102,8 +106,8 @@ discharged via the web UI.
 
 ## 🔧 Common tasks & samples
 
-1. **Add a new subway line icon**: extend the `FONT_MAP` in `display.py` and add a
-   BDF font file to `fonts/`.
+1. **Refresh route-symbol assets**: use `scripts/vendor_route_symbols.py` with a
+  manually obtained `louh/mta-subway-bullets` checkout; see `assets/route_symbols/README.md`.
 2. **Change refresh interval**: edit `settings.toml`, e.g. `update_interval_sec`.
 3. **Debug real-time feed parsing**: sprinkle `print` statements or use
    `uv run python -m pdb -m subway_sign.trips` to replay a saved GTFS-realtime protobuf.

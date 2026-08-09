@@ -55,7 +55,7 @@ sudo .venv/bin/subway-display
 ```
 Or run the console emulator without hardware:
 ```bash
-uv run subway-emulator
+uv run python scripts/console_emulator.py
 ```
 
 3. The program will start running and display the output on the screen.
@@ -148,16 +148,18 @@ uv run pytest tests/test_config_flow.py
 On a development machine, preview the sign's logical arrival rows without Raspberry Pi LED hardware, root access, or a systemd service:
 
 ```bash
-uv run subway-emulator
+uv run python scripts/console_emulator.py
 ```
 
 Use `Ctrl + C` to stop it. The emulator loads the same runtime configuration as the sign. To test another canonical JSON configuration without changing the system configuration, set `MATRIX_CONFIG_PATH` before launch:
 
 ```bash
-MATRIX_CONFIG_PATH=/path/to/matrix_config.json uv run subway-emulator
+MATRIX_CONFIG_PATH=/path/to/matrix_config.json uv run python scripts/console_emulator.py
 ```
 
 The emulator requests live MTA data through the production trip pipeline, so it needs network access and an active static GTFS snapshot. Create a snapshot with `uv run subway-gtfs-refresh --force` before using the emulator on a fresh checkout. It displays logical route, direction, arrival, refresh, and error state only; it does not reproduce LED pixels, fonts, colors, symbols, GPIO behavior, or hardware refresh timing.
+
+`scripts/console_emulator.py` and `scripts/vendor_route_symbols.py` are development and maintenance utilities. They are not deployed as sign services or installed as package commands. See `assets/route_symbols/README.md` for the route-symbol utility.
 
 ### Static GTFS Refresh
 
